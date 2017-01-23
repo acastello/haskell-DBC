@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric, DefaultSignatures #-}
 
 module DBC where
 
@@ -16,6 +16,8 @@ import System.IO (openFile, IOMode (ReadMode), hClose)
 
 class Serialize a => Gettable a where
     get' :: ByteString -> Get a
+
+    default get' :: Serialize a => ByteString -> Get a
     get' = \_ -> get
 
 instance Gettable ByteString where
