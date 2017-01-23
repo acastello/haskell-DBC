@@ -8,13 +8,14 @@ import Data.ByteString.Lazy
 import Data.Int
 import Data.Serialize
 import Data.Vector
+import qualified Data.Vector as V
 import Data.Word 
 
 import GHC.Generics
 
 import System.IO (openFile, IOMode (ReadMode), hClose)
 
-class Serialize a => Gettable a where
+class Gettable a where
     get' :: ByteString -> Get a
 
     default get' :: Serialize a => ByteString -> Get a
@@ -83,8 +84,8 @@ readDBC fp = do
     hClose h
     return $ DBC r c e s v strs
 
-decodeDBC :: Gettable a => DBC ByteString -> Either String (DBC a)
-decodeDBC dbc = traverse (runGetLazy $ get' (strs dbc)) dbc
+decodeDBC :: Gettable a => DBC ByteString -> Either String (Vector a)
+decodeDBC dbc = traverse (runGetLazy $ get' (strs dbc)) (rows dbc)
 
 --
 -- utils
@@ -97,6 +98,31 @@ peekBS :: ByteString -> ByteString
 peekBS = BL.takeWhile (/=0)
 
 applyf f dbc = dbc { rows = f (rows dbc) }
+
+isInfix :: ByteString -> ByteString -> Bool
+isInfix needle hay = Prelude.any (isPrefixOf needle) 
+                     [BL.drop i hay | i <- [0.. BL.length hay - BL.length needle]]
+
+data Spell = Spell
+    { sp_id   :: Word32     -- 0
+    , sp_desc :: ByteString -- 136 
+    , sp_n    :: Int32     -- 80
+    , sp_type :: Word32     -- 71 
+    } deriving Generic
+
+instance Show Spell where
+    show (Spell id desc n typ) = show (id, desc, n, typ)
+
+instance Gettable Spell where
+    get' strs = do
+        id <- get' strs
+        skip (4*70)
+        typ <- get' strs
+        skip (4*8)
+        n <- get' strs
+        skip (4*55)
+        desc <- get' strs
+        return $ Spell id desc n typ
 
 newtype T136 a = T136 a
     deriving (Generic)
