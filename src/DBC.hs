@@ -105,22 +105,22 @@ isInfix needle hay = Prelude.any (isPrefixOf needle)
 
 data Spell = Spell
     { sp_id   :: Word32     -- 0
-    , sp_desc :: ByteString -- 136 
     , sp_n    :: Int32     -- 80
-    , sp_type :: Word32     -- 71 
+    , sp_type :: Word32     -- 110
+    , sp_desc :: ByteString -- 136 
     } deriving Generic
 
 instance Show Spell where
-    show (Spell id desc n typ) = show (id, desc, n, typ)
+    show (Spell id n typ desc) = show (id, n, typ, desc) Prelude.++ "\n"
 
 instance Gettable Spell where
     get' strs = do
         id <- get' strs
-        skip (4*70)
-        typ <- get' strs
-        skip (4*8)
+        skip (4*79)
         n <- get' strs
-        skip (4*55)
+        skip (4*29)
+        typ <- get' strs
+        skip (4*25)
         desc <- get' strs
         return $ Spell id desc n typ
 
