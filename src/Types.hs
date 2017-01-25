@@ -3,6 +3,7 @@
 module Types where
 
 import Data.ByteString.Char8 hiding (foldl1)
+import Data.Word
 
 data Slot = Head | Neck | Shoulders | Back | Chest | Waist | Pants | Wrists
     | Hands | Feet | Finger | Trinket | MainHand | OffHand | AnyHand | TwoHands
@@ -11,7 +12,8 @@ data Slot = Head | Neck | Shoulders | Back | Chest | Waist | Pants | Wrists
 
 data Stat = Mana | HP | Agility | Strength | Intellect | Spirit | Stamina 
     | Defense | Dodge | Parry | Block | Hit | Crit | Resilence | Haste 
-    | Expertise | AttackPower | HealingPower | ManaPer5 | SpellPower 
+    | Expertise | AttackPower | HealingPower | ManaPer5 | SpellPower
+    | ShadowRes | FireRes | FrostRes | NatureRes | ArcaneRes
     | UnknownStat Int
     deriving (Show, Read)
 
@@ -40,7 +42,7 @@ data Item = Item
     , islot   :: Slot
     , istats  :: [(Stat,Int)] 
     , ilevel  :: ItemLevel 
-    , ispells :: [ByteString]
+    , ispells :: [Word32]
     , ireq    :: Requirements
     }
 

@@ -1,7 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+import Codec.Compression.GZip
+
 import Data.ByteString
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as BL
 import Data.Scientific
 import Data.Serialize
 import Data.Text
@@ -11,6 +14,8 @@ import Data.Time
 import Database.MySQL.Base
 
 import qualified System.IO.Streams as S
+
+import Types
 
 queryString :: Query
 queryString = "SELECT ID, MINLEVEL FROM `quest_template` WHERE ? IN (`RewardChoiceItemID1`\
@@ -45,3 +50,15 @@ instance Serialize Scientific where
     get = undefined
 
 instance Serialize MySQLValue
+
+saveResult :: FilePath -> [[MySQLValue]] -> IO ()
+saveResult file res = BL.writeFile file $ compress $ encodeLazy res
+
+loadResult :: FilePath -> IO [[MySQLValue]]
+loadResult file = either error id . decodeLazy . decompress <$> BL.readFile file
+
+getRes :: [MySQLValue] -> Maybe [(Stat, Int)]
+getRes entry = do
+    undefined
+
+just n = if n/=0 then Just n else Nothing
