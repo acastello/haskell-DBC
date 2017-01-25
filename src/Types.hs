@@ -15,24 +15,36 @@ data Stat = Mana | HP | Agility | Strength | Intellect | Spirit | Stamina
     | UnknownStat Int
     deriving (Show, Read)
 
+data Class = Mage | Priest | Warlock | Druid | Rogue | Hunter | Shaman
+    | DeathKnight | Paladin | Warrior
+    deriving (Show, Read)
+
+data Faction = Alliance | Horde
+    deriving (Show, Read)
+
 type Level = Int
 type ItemLevel = Level
 
--- data Requirements :: Requirements
-    -- { minlevel :: Maybe Level
-    -- , faction  :: Maybe Int
-    -- , 
+data Requirements = Requirements
+    { r_lvl   :: Maybe Level
+    , r_fac   :: Maybe Faction
+    , r_class :: Maybe Class
+    } deriving Show
+
+noRequirements :: Requirements
+noRequirements = Requirements Nothing Nothing Nothing
 
 data Item = Item 
     { iid     :: Int
     , iname   :: ByteString 
     , islot   :: Slot
-    , istats  :: [(Stat,Integer)] 
+    , istats  :: [(Stat,Int)] 
     , ilevel  :: ItemLevel 
-    , ireq    :: Maybe Level
+    , ispells :: [ByteString]
+    , ireq    :: Requirements
     }
 
-turban = Item 12837 "w/e turban" Head [(Intellect, 10), (Hit, 8), (SpellPower, 32)] 62 (Just 58)
+-- turban = Item 12837 "w/e turban" Head [(Intellect, 10), (Hit, 8), (SpellPower, 32)] 62 (Just 58)
 
 class Abr a where
     abr :: a -> String

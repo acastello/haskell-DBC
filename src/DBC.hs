@@ -124,12 +124,16 @@ knownspells = [18053          -- sp
 
 sc :: (Word32,Word32) -> String
 sc n = case n of
-    (189,1792)-> "crit"
+    (13,126)  -> "sp"
     (99,0)    -> "ap"
     (85,0)    -> "mp5"
-    (189,224) -> "hit"
     (123,124) -> "spen"
-    (13,126)  -> "sp"
+    (161,0)   -> "hp5"
+    (189,2)   -> "def"
+    (189,4)   -> "par"
+    (189,8)   -> "dod"
+    (189,224) -> "hit"
+    (189,1792)-> "crit"
     _ -> show n
 
 data Spell = Spell
