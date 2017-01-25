@@ -2,7 +2,7 @@
 
 module DBC where
 
-import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as BL
 import Data.ByteString.Lazy
 import Data.Int
@@ -15,6 +15,8 @@ import GHC.Generics
 
 import System.IO (openFile, IOMode (ReadMode), hClose)
 
+import qualified Text.Printf as T
+
 class Gettable a where
     get' :: ByteString -> Get a
 
@@ -25,6 +27,11 @@ instance Gettable ByteString where
     get' strs = do
         i <- getWord32le
         return $ peekBS (BL.drop (fi i) strs)
+
+instance Gettable B.ByteString where
+    get' strs = do
+        i <- getWord32le
+        return $ toStrict $ peekBS (BL.drop (fi i) strs)
 
 instance Gettable Word8 where
     get' = \_ -> getWord8
@@ -99,30 +106,54 @@ peekBS = BL.takeWhile (/=0)
 
 applyf f dbc = dbc { rows = f (rows dbc) }
 
-isInfix :: ByteString -> ByteString -> Bool
-isInfix needle hay = Prelude.any (isPrefixOf needle) 
-                     [BL.drop i hay | i <- [0.. BL.length hay - BL.length needle]]
+isInfix :: B.ByteString -> B.ByteString -> Bool
+isInfix needle hay = Prelude.any (B.isPrefixOf needle) 
+                     [B.drop i hay | i <- [0.. B.length hay - B.length needle]]
+knownspells :: [Word32]
+knownspells = [18053          -- sp
+              , 23727, 15464  -- hit
+              , 7598, 7597    -- crit
+              , 9331, 14027   -- ap
+              , 21362, 21626  -- mp5
+              , 25975         -- spen
+              , 21598         -- hp5
+              , 13390         -- def
+              , 13665         -- par
+              , 13669         -- ddg
+              ]
+
+sc :: (Word32,Word32) -> String
+sc n = case n of
+    (189,1792)-> "crit"
+    (99,0)    -> "ap"
+    (85,0)    -> "mp5"
+    (189,224) -> "hit"
+    (123,124) -> "spen"
+    (13,126)  -> "sp"
+    _ -> show n
 
 data Spell = Spell
     { sp_id   :: Word32     -- 0
     , sp_n    :: Int32     -- 80
-    , sp_type :: Word32     -- 110
-    , sp_desc :: ByteString -- 136 
+    , sp_type :: (Word32, Word32)     -- 95 -- 110?
+    , sp_desc :: B.ByteString -- 136 
     } deriving Generic
 
 instance Show Spell where
-    show (Spell id n typ desc) = show (id, n, typ, desc) Prelude.++ "\n"
+    show (Spell id n typ desc) = T.printf "%7d: %3d, %4s, %s\n" id n (sc typ) (B.unpack desc)
 
 instance Gettable Spell where
     get' strs = do
         id <- get' strs
         skip (4*79)
         n <- get' strs
-        skip (4*29)
+        skip (4*14)
         typ <- get' strs
+        skip (4*14)
+        typ' <- get' strs
         skip (4*25)
         desc <- get' strs
-        return $ Spell id desc n typ
+        return $ Spell id n (typ,typ') desc
 
 newtype T136 a = T136 a
     deriving (Generic)
