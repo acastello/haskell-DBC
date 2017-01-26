@@ -123,4 +123,3 @@ instance Enum Stat where
     fromEnum = undefined
 
 
-deriving instance Generic (V.Vector a)

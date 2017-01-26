@@ -71,6 +71,14 @@ getMainStats entry = catMaybes $ do
     return $ just' (toEnum $ fs $ entry!!(28+2*i)) (fs $ entry!!(29+2*i))
     where n = fs (entry!!27)
                     
+getItem :: [MySQLValue] -> Item
+getItem e =
+    let iid = fs (e!!0)
+        iname = (\(MySQLText t) -> encodeUtf8 t) (e!!4)
+        islot = Head
+        istats = (getMainStats e) ++ (getRes e)
+        ilevel = fs (e!!15)
+    in undefined
 
 just :: (Eq a, Num a) => a -> Maybe a
 just n = if n/=0 then Just n else Nothing
