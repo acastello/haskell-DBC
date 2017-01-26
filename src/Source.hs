@@ -5,6 +5,8 @@ import Codec.Compression.GZip
 import Data.ByteString
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.List as L
+import Data.Maybe
 import Data.Scientific
 import Data.Serialize
 import Data.Text
@@ -57,8 +59,35 @@ saveResult file res = BL.writeFile file $ compress $ encodeLazy res
 loadResult :: FilePath -> IO [[MySQLValue]]
 loadResult file = either error id . decodeLazy . decompress <$> BL.readFile file
 
-getRes :: [MySQLValue] -> Maybe [(Stat, Int)]
-getRes entry = do
-    undefined
+getRes :: [MySQLValue] -> [(Stat, Int)]
+getRes entry = 
+    catMaybes $ L.zipWith just' 
+        [HolyRes, FireRes, NatureRes, FrostRes, ShadowRes, ArcaneRes]
+        (fs <$> inds entry [57..62])
 
+getMainStats :: [MySQLValue] -> [(Stat, Int)]
+getMainStats entry = catMaybes $ do
+    i <- [0..n-1]
+    return $ just' (toEnum $ fs $ entry!!(28+2*i)) (fs $ entry!!(29+2*i))
+    where n = fs (entry!!27)
+                    
+
+just :: (Eq a, Num a) => a -> Maybe a
 just n = if n/=0 then Just n else Nothing
+
+just' :: (Eq b, Num b) => a -> b -> Maybe (a,b)
+just' a b = (,) a <$> just b
+
+inds :: [a] -> [Int] -> [a]
+inds entry indices = (!!) <$> pure entry <*> indices
+
+fs :: Num a => MySQLValue -> a
+fs i = case i of
+    MySQLInt8 n -> fromIntegral n
+    MySQLInt8U n -> fromIntegral n
+    MySQLInt16 n -> fromIntegral n
+    MySQLInt16U n -> fromIntegral n
+    MySQLInt32 n -> fromIntegral n
+    MySQLInt32U n -> fromIntegral n
+    MySQLInt64 n -> fromIntegral n
+    MySQLInt64U n -> fromIntegral n

@@ -1,0 +1,37 @@
+Mana    0
+HP      1
+Agi     3
+Str     4
+Int     5
+Spi     6
+Sta     7
+Def     12
+Dge     13
+Par     14
+Blk     15
+Hitm    16
+hitr    17
+hits    18
+critm   19
+critr   20
+crits   21
+hastm   28
+hastr   29
+hasts   30
+hit     31
+crit    32
+res     35
+hast    36
+exp     37
+ap      38
+rap     39
+heal    41
+mp5     43
+arpen   44
+sp      45
+hp5     46
+sppen   47
+blkv    48
+
+entry   item id
+name

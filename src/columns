@@ -1,0 +1,139 @@
+0       entry                       mediumint(8) unsigned
+1       class                       tinyint(3) unsigned
+2       subclass                    tinyint(3) unsigned
+3       SoundOverrideSubclass       tinyint(3)
+4       name                        varchar(255)
+5       displayid                   mediumint(8) unsigned
+6       Quality                     tinyint(3) unsigned
+7       Flags                       int(10) unsigned
+8       FlagsExtra                  int(10) unsigned
+9       BuyCount                    tinyint(3) unsigned
+10      BuyPrice                    bigint(20)
+11      SellPrice                   int(10) unsigned
+12      InventoryType               tinyint(3) unsigned
+13      AllowableClass              int(11)
+14      AllowableRace               int(11)
+15      ItemLevel                   smallint(5) unsigned
+16      RequiredLevel               tinyint(3) unsigned
+17      RequiredSkill               smallint(5) unsigned
+18      RequiredSkillRank           smallint(5) unsigned
+19      requiredspell               mediumint(8) unsigned
+20      requiredhonorrank           mediumint(8) unsigned
+21      RequiredCityRank            mediumint(8) unsigned
+22      RequiredReputationFaction   smallint(5) unsigned
+23      RequiredReputationRank      smallint(5) unsigned
+24      maxcount                    int(11)
+25      stackable                   int(11)
+26      ContainerSlots              tinyint(3) unsigned
+27      StatsCount                  tinyint(3) unsigned
+28      stat_type1                  tinyint(3) unsigned
+29      stat_value1                 smallint(6)
+30      stat_type2                  tinyint(3) unsigned
+31      stat_value2                 smallint(6)
+32      stat_type3                  tinyint(3) unsigned
+33      stat_value3                 smallint(6)
+34      stat_type4                  tinyint(3) unsigned
+35      stat_value4                 smallint(6)
+36      stat_type5                  tinyint(3) unsigned
+37      stat_value5                 smallint(6)
+38      stat_type6                  tinyint(3) unsigned
+39      stat_value6                 smallint(6)
+40      stat_type7                  tinyint(3) unsigned
+41      stat_value7                 smallint(6)
+42      stat_type8                  tinyint(3) unsigned
+43      stat_value8                 smallint(6)
+44      stat_type9                  tinyint(3) unsigned
+45      stat_value9                 smallint(6)
+46      stat_type10                 tinyint(3) unsigned
+47      stat_value10                smallint(6)
+48      ScalingStatDistribution     smallint(6)
+49      ScalingStatValue            int(10) unsigned
+50      dmg_min1                    float
+51      dmg_max1                    float
+52      dmg_type1                   tinyint(3) unsigned
+53      dmg_min2                    float
+54      dmg_max2                    float
+55      dmg_type2                   tinyint(3) unsigned
+56      armor                       smallint(5) unsigned
+57      holy_res                    tinyint(3) unsigned
+58      fire_res                    tinyint(3) unsigned
+59      nature_res                  tinyint(3) unsigned
+60      frost_res                   tinyint(3) unsigned
+61      shadow_res                  tinyint(3) unsigned
+62      arcane_res                  tinyint(3) unsigned
+63      delay                       smallint(5) unsigned
+64      ammo_type                   tinyint(3) unsigned
+65      RangedModRange              float
+66      spellid_1                   mediumint(8)
+67      spelltrigger_1              tinyint(3) unsigned
+68      spellcharges_1              smallint(6)
+69      spellppmRate_1              float
+70      spellcooldown_1             int(11)
+71      spellcategory_1             smallint(5) unsigned
+72      spellcategorycooldown_1     int(11)
+73      spellid_2                   mediumint(8)
+74      spelltrigger_2              tinyint(3) unsigned
+75      spellcharges_2              smallint(6)
+76      spellppmRate_2              float
+77      spellcooldown_2             int(11)
+78      spellcategory_2             smallint(5) unsigned
+79      spellcategorycooldown_2     int(11)
+80      spellid_3                   mediumint(8)
+81      spelltrigger_3              tinyint(3) unsigned
+82      spellcharges_3              smallint(6)
+83      spellppmRate_3              float
+84      spellcooldown_3             int(11)
+85      spellcategory_3             smallint(5) unsigned
+86      spellcategorycooldown_3     int(11)
+87      spellid_4                   mediumint(8)
+88      spelltrigger_4              tinyint(3) unsigned
+89      spellcharges_4              smallint(6)
+90      spellppmRate_4              float
+91      spellcooldown_4             int(11)
+92      spellcategory_4             smallint(5) unsigned
+93      spellcategorycooldown_4     int(11)
+94      spellid_5                   mediumint(8)
+95      spelltrigger_5              tinyint(3) unsigned
+96      spellcharges_5              smallint(6)
+97      spellppmRate_5              float
+98      spellcooldown_5             int(11)
+99      spellcategory_5             smallint(5) unsigned
+100     spellcategorycooldown_5     int(11)
+101     bonding                     tinyint(3) unsigned
+102     description                 varchar(255)
+103     PageText                    mediumint(8) unsigned
+104     LanguageID                  tinyint(3) unsigned
+105     PageMaterial                tinyint(3) unsigned
+106     startquest                  mediumint(8) unsigned
+107     lockid                      mediumint(8) unsigned
+108     Material                    tinyint(4)
+109     sheath                      tinyint(3) unsigned
+110     RandomProperty              mediumint(8)
+111     RandomSuffix                mediumint(8) unsigned
+112     block                       mediumint(8) unsigned
+113     itemset                     mediumint(8) unsigned
+114     MaxDurability               smallint(5) unsigned
+115     area                        mediumint(8) unsigned
+116     Map                         smallint(6)
+117     BagFamily                   mediumint(8)
+118     TotemCategory               mediumint(8)
+119     socketColor_1               tinyint(4)
+120     socketContent_1             mediumint(8)
+121     socketColor_2               tinyint(4)
+122     socketContent_2             mediumint(8)
+123     socketColor_3               tinyint(4)
+124     socketContent_3             mediumint(8)
+125     socketBonus                 mediumint(8)
+126     GemProperties               mediumint(8)
+127     RequiredDisenchantSkill     smallint(6)
+128     ArmorDamageModifier         float
+129     duration                    int(10) unsigned
+130     ItemLimitCategory           smallint(6)
+131     HolidayId                   int(11) unsigned
+132     ScriptName                  varchar(64)
+133     DisenchantID                mediumint(8) unsigned
+134     FoodType                    tinyint(3) unsigned
+135     minMoneyLoot                int(10) unsigned
+136     maxMoneyLoot                int(10) unsigned
+137     flagsCustom                 int(10) unsigned
+138     VerifiedBuild               smallint(5)

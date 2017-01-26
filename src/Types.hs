@@ -1,9 +1,12 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, StandaloneDeriving #-}
 
 module Types where
 
 import Data.ByteString.Char8 hiding (foldl1)
+import qualified Data.Vector as V
 import Data.Word
+
+import GHC.Generics
 
 data Slot = Head | Neck | Shoulders | Back | Chest | Waist | Pants | Wrists
     | Hands | Feet | Finger | Trinket | MainHand | OffHand | AnyHand | TwoHands
@@ -11,9 +14,10 @@ data Slot = Head | Neck | Shoulders | Back | Chest | Waist | Pants | Wrists
     deriving (Show, Read)
 
 data Stat = Mana | HP | Agility | Strength | Intellect | Spirit | Stamina 
-    | Defense | Dodge | Parry | Block | Hit | Crit | Resilence | Haste 
-    | Expertise | AttackPower | HealingPower | ManaPer5 | SpellPower
-    | ShadowRes | FireRes | FrostRes | NatureRes | ArcaneRes
+    | Armor | Defense | Dodge | Parry | Block | Hit | Crit | Resilence | Haste 
+    | Expertise | AttackPower | HealingPower | ManaPer5 | SpellPower | ArmorPen
+    | Vitality | SpellPen | BlockValue
+    | HolyRes | ShadowRes | FireRes | FrostRes | NatureRes | ArcaneRes 
     | UnknownStat Int
     deriving (Show, Read)
 
@@ -78,3 +82,45 @@ instance Abr Stat where
 instance Show Item where
     show i = (unpack $ iname i) ++ " (" ++ 
              foldl1 (\a b -> a ++ ", " ++ b) ((\(s,a) -> show a ++ " " ++ abr s) <$> (istats i))
+
+instance Enum Stat where
+    toEnum i = case i of
+        0   -> Mana
+        1   -> HP
+        3   -> Agility
+        4   -> Strength
+        5   -> Intellect
+        6   -> Spirit
+        7   -> Stamina
+        12  -> Defense
+        13  -> Dodge
+        14  -> Parry
+        15  -> Block
+        16  -> Hit
+        17  -> Hit
+        18  -> Hit
+        19  -> Crit
+        20  -> Crit
+        21  -> Crit
+        28  -> Haste
+        29  -> Haste
+        30  -> Haste
+        31  -> Hit
+        32  -> Crit
+        35  -> Resilence
+        36  -> Haste
+        37  -> Expertise
+        38  -> AttackPower
+        39  -> AttackPower
+        41  -> HealingPower
+        43  -> ManaPer5
+        44  -> ArmorPen
+        45  -> SpellPower
+        46  -> Vitality
+        47  -> SpellPen
+        48  -> BlockValue
+        i -> UnknownStat i
+    fromEnum = undefined
+
+
+deriving instance Generic (V.Vector a)
