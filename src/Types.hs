@@ -22,7 +22,7 @@ data Slot = Head | Neck | Shoulder | Back | Chest | Waist | Legs | Wrists
     | Hands | Feet | Finger | Trinket | MainHand | OffHand | Weapon | TwoHand
     | Ranged | Bag | HandHeld | Thrown | Ammo | Relic | Quiver | Shirt | Tabard 
     | Shield | UnknownSlot Int
-    deriving (Show, Read, Eq, Generic)
+    deriving (Show, Read, Eq, Generic, Ord)
 
 instance Serialize Slot
 
@@ -117,12 +117,15 @@ getSpellStats sp = (\i -> (i, fromIntegral $ sval sp)) <$> case (stype sp) of
     (99,0)    -> Just AttackPower
     (85,0)    -> Just ManaPer5
     (123,124) -> Just SpellPen
+    (158,0)   -> Just BlockValue
     (161,0)   -> Just Vitality
     (189,2)   -> Just Defense
     (189,4)   -> Just Parry
     (189,8)   -> Just Dodge
     (189,224) -> Just Hit
     (189,1782)-> Just Crit
+    (189,1792)-> Just Crit
+    (189,16777216) -> Just ArmorPen
     _ -> Nothing
 
 getSpellItems :: Spell -> [Item] -> [Item]
