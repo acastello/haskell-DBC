@@ -1,7 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+module Source where
+
 import Codec.Compression.GZip
 
+import qualified Data.Array as A
 import Data.ByteString
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
@@ -12,12 +15,15 @@ import Data.Serialize
 import Data.Text
 import Data.Text.Encoding
 import Data.Time
+import qualified Data.Vector as V
+import Data.Word
 
 import Database.MySQL.Base
 
 import qualified System.IO.Streams as S
 
 import Types
+import DBC
 
 queryString :: Query
 queryString = "SELECT ID, MINLEVEL FROM `quest_template` WHERE ? IN (`RewardChoiceItemID1`\
@@ -53,11 +59,29 @@ instance Serialize Scientific where
 
 instance Serialize MySQLValue
 
+save :: Serialize a => FilePath -> a -> IO ()
+save file res = BL.writeFile file $ compress $ encodeLazy res
+
+load :: Serialize a => FilePath -> IO a
+load file = either error id . decodeLazy . decompress <$> BL.readFile file
+
 saveResult :: FilePath -> [[MySQLValue]] -> IO ()
 saveResult file res = BL.writeFile file $ compress $ encodeLazy res
 
 loadResult :: FilePath -> IO [[MySQLValue]]
 loadResult file = either error id . decodeLazy . decompress <$> BL.readFile file
+
+loadSpells :: IO [Spell]
+loadSpells = load "spells.gz"
+
+saveSpells :: [Spell] -> IO ()
+saveSpells sp = save "spells.gz" sp
+
+loadItems :: IO [Item]
+loadItems = load "items.gz"
+
+saveItems :: [Item] -> IO ()
+saveItems is = save "items.gz" is
 
 getRes :: [MySQLValue] -> [(Stat, Int)]
 getRes entry = 
@@ -70,15 +94,27 @@ getMainStats entry = catMaybes $ do
     i <- [0..n-1]
     return $ just' (toEnum $ fs $ entry!!(28+2*i)) (fs $ entry!!(29+2*i))
     where n = fs (entry!!27)
+
+getSpells :: [MySQLValue] -> [Word32]
+getSpells e = do
+    i <- fs <$> inds e [66,73,80,87,94]
+    if i /= 0 then
+        return i
+    else
+        []
                     
-getItem :: [MySQLValue] -> Item
-getItem e =
+getItem :: [Spell] -> [MySQLValue] -> Item
+getItem sp e =
     let iid = fs (e!!0)
         iname = (\(MySQLText t) -> encodeUtf8 t) (e!!4)
-        islot = Head
+        islot = toEnum $ fs (e!!12)
         istats = (getMainStats e) ++ (getRes e)
         ilevel = fs (e!!15)
-    in undefined
+        ispells = getSpells e
+        ispells' = foldMap (\s -> L.filter (\s' -> s == sid s') sp) ispells
+        istats' = catMaybes $ getSpellStats <$> ispells'
+    in Item iid iname islot (istats++istats') ilevel ispells noRequirements 
+        (foldMap (B.append "\n") (sdesc <$> ispells'))
 
 just :: (Eq a, Num a) => a -> Maybe a
 just n = if n/=0 then Just n else Nothing
