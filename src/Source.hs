@@ -4,10 +4,13 @@ module Source where
 
 import Codec.Compression.GZip
 
+import Control.Exception (evaluate)
+
 import qualified Data.Array as A
 import Data.ByteString
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.IntMap as M
 import qualified Data.List as L
 import Data.Maybe
 import Data.Scientific
@@ -25,17 +28,13 @@ import qualified System.IO.Streams as S
 import Types
 import DBC
 
-queryString :: Query
-queryString = "SELECT ID, MINLEVEL FROM `quest_template` WHERE ? IN (`RewardChoiceItemID1`\
-             \, `RewardChoiceItemID2`, `RewardChoiceItemID3`, `RewardChoiceItemID4`)"
 
-q id = do
+q tab = do
     conn <- connect defaultConnectInfo { ciUser = "guest"
         , ciHost = "192.168.1.111", ciDatabase = "world" }
-    s <- prepareStmt conn queryString
-    print =<< S.read . snd =<< queryStmt conn s [MySQLInt32U id]
+    ret <- S.toList . snd =<< query_ conn tab
     close conn
-    return ()
+    return ret
 
 instance Serialize Text where
     put txt = put $ encodeUtf8 txt
@@ -65,23 +64,56 @@ save file res = BL.writeFile file $ compress $ encodeLazy res
 load :: Serialize a => FilePath -> IO a
 load file = either error id . decodeLazy . decompress <$> BL.readFile file
 
+saveComp :: Serialize a => FilePath -> [String] -> String -> a -> IO ()
+saveComp file imps var e = let varname = (L.head $ L.words var) in Prelude.writeFile (file ++ ".hs") $
+                          "module " ++ file ++ " where\n" ++
+                          "import Data.Serialize\n" ++
+                          "import Codec.Compression.GZip\n\n" ++
+                          (foldMap (\s -> s ++ "\n") imps) ++ "\n" ++
+                          (if "::" `L.isInfixOf` var then var else "") ++ "\n" ++
+                          "" ++ varname ++ " = either error id $ decodeLazy $ decompress $ "
+                          ++ (show $ compress $ encodeLazy e) ++ "\n" ++
+                          "{-# INLINE " ++ varname ++ " #-}"
+
+saveCompItems :: M.IntMap Item -> IO ()
+saveCompItems = saveComp "Raw_items" ["import Data.IntMap", "import Types"] "raw_items :: IntMap Item"
+
 saveResult :: FilePath -> [[MySQLValue]] -> IO ()
 saveResult file res = BL.writeFile file $ compress $ encodeLazy res
 
 loadResult :: FilePath -> IO [[MySQLValue]]
 loadResult file = either error id . decodeLazy . decompress <$> BL.readFile file
 
-loadSpells :: IO [Spell]
+loadQuests :: IO (M.IntMap Quest)
+loadQuests = load "quests.gz"
+
+saveQuests :: M.IntMap Quest -> IO ()
+saveQuests = save "quests.gz"
+
+loadSpells :: IO (M.IntMap Spell)
 loadSpells = load "spells.gz"
 
-saveSpells :: [Spell] -> IO ()
+saveSpells :: M.IntMap Spell -> IO ()
 saveSpells sp = save "spells.gz" sp
 
-loadItems :: IO [Item]
+loadItems :: IO (M.IntMap Item)
 loadItems = load "items.gz"
 
-saveItems :: [Item] -> IO ()
+saveItems :: M.IntMap Item -> IO ()
 saveItems is = save "items.gz" is
+
+
+getQuest :: [MySQLValue] -> Quest
+getQuest e =
+    let qid = fs (e!!0)
+        qname = (\(MySQLText t) -> encodeUtf8 t) (e!!74)
+        rmask = fs (e!!73)
+        r_fac = case rmask of 0x2b2 -> Just Horde
+                              0x44d -> Just Alliance
+                              _ -> Nothing
+        r_level = fs (e!!3)
+        qitems = L.filter (/=0) $ fs <$> inds e [22,24,26,28,38,40,42,44,46,48]
+    in Quest qid qname r_level r_fac qitems
 
 getRes :: [MySQLValue] -> [(Stat, Int)]
 getRes entry = 
@@ -95,7 +127,7 @@ getMainStats entry = catMaybes $ do
     return $ just' (toEnum $ fs $ entry!!(28+2*i)) (fs $ entry!!(29+2*i))
     where n = fs (entry!!27)
 
-getSpells :: [MySQLValue] -> [Word32]
+getSpells :: [MySQLValue] -> [Int]
 getSpells e = do
     i <- fs <$> inds e [66,73,80,87,94]
     if i /= 0 then
@@ -103,18 +135,35 @@ getSpells e = do
     else
         []
                     
-getItem :: [Spell] -> [MySQLValue] -> Item
-getItem sp e =
+getItem :: M.IntMap Spell -> M.IntMap Quest -> [MySQLValue] -> Item
+getItem sp qs e =
     let iid = fs (e!!0)
         iname = (\(MySQLText t) -> encodeUtf8 t) (e!!4)
+        iqual = toEnum $ fs (e!!6)
         islot = toEnum $ fs (e!!12)
+        iatype = toEnum $ fs (e!!108)
         istats = (getMainStats e) ++ (getRes e)
         ilevel = fs (e!!15)
+        rlevel = fs (e!!16)
+        iqs = M.filter (\q -> L.any (== iid) (qitems q)) qs
+        reqlevel = if M.null iqs then 
+                      rlevel 
+                    else 
+                      max rlevel (qlevel $ snd $ L.head $ M.toList iqs)
+        reqlevel' = if iqual > Uncommon && reqlevel == 0 then -1 else reqlevel
         ispells = getSpells e
-        ispells' = foldMap (\s -> L.filter (\s' -> s == sid s') sp) ispells
+        ispells' = catMaybes $ flip M.lookup sp <$> ispells -- foldMap (\s -> L.filter (\s' -> s == sid s') sp) ispells
         istats' = catMaybes $ getSpellStats <$> ispells'
-    in Item iid iname islot (istats++istats') ilevel ispells noRequirements 
+    in Item iid iname islot iatype (istats++istats') ilevel iqual reqlevel'
         (foldMap (B.append "\n") (sdesc <$> ispells'))
+
+getItems :: IO (M.IntMap Item)
+getItems = do
+    irs <- evaluate =<< loadResult "item_template.gz"
+    ss <- evaluate =<< loadSpells
+    qs <- evaluate =<< loadQuests
+    evaluate $ M.fromList $ fmap (\x -> (iid x, x)) $ getItem ss qs <$> irs
+
 
 just :: (Eq a, Num a) => a -> Maybe a
 just n = if n/=0 then Just n else Nothing

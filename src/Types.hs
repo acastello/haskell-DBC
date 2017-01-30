@@ -16,6 +16,8 @@ import Data.Word
 
 import GHC.Generics
 
+import Text.Printf (printf)
+
 import DBC
 
 data Slot = Head | Neck | Shoulder | Back | Chest | Waist | Legs | Wrists
@@ -26,15 +28,72 @@ data Slot = Head | Neck | Shoulder | Back | Chest | Waist | Legs | Wrists
 
 instance Serialize Slot
 
+data ArmorType = NotArmor | Cloth | Leather | Mail | Plate
+    deriving (Eq, Ord, Generic)
+
+instance Serialize ArmorType
+
+instance Show ArmorType where
+    show NotArmor = ""
+    show Cloth = "Cloth"
+    show Leather = "Leather"
+    show Mail = "Mail"
+    show Plate = "Plate"
+
+instance Enum ArmorType where
+    fromEnum = undefined
+    toEnum n = case n of
+        5 -> Mail
+        6 -> Plate
+        7 -> Cloth
+        8 -> Leather
+        _ -> NotArmor
+
+appendAT :: String -> ArmorType -> String
+appendAT pre at =
+    let s = show at
+    in if L.null s then
+        pre
+    else
+        pre ++ ", " ++ s
+
 data Stat = Mana | HP | Agility | Strength | Intellect | Spirit | Stamina 
     | Armor | Defense | Dodge | Parry | Block | Hit | Crit | Resilence | Haste 
     | Expertise | AttackPower | HealingPower | ManaPer5 | SpellPower | ArmorPen
     | Vitality | SpellPen | BlockValue
     | HolyRes | ShadowRes | FireRes | FrostRes | NatureRes | ArcaneRes 
     | UnknownStat Int
-    deriving (Read, Generic)
+    deriving (Eq, Read, Generic)
 
 instance Serialize Stat
+
+data Quality = Poor | Common | Uncommon | Rare | Epic | Legendary
+    | Artifact | BtA
+    deriving (Eq, Ord, Show, Read, Generic)
+
+qualc :: Item -> String
+qualc i = col $ case iqual i of
+    Poor      -> []
+    Common    -> [1]
+    Uncommon  -> [1,32]
+    Rare      -> [1,34]
+    Epic      -> [1,35]
+    Legendary -> [1,33]
+    _         -> [1,36]
+
+instance Serialize Quality
+
+instance Enum Quality where
+    fromEnum = undefined
+    toEnum i = case i of
+        0 -> Poor
+        1 -> Common
+        2 -> Uncommon
+        3 -> Rare
+        4 -> Epic
+        5 -> Legendary
+        6 -> Artifact
+        7 -> BtA
 
 data Class = Mage | Priest | Warlock | Druid | Rogue | Hunter | Shaman
     | DeathKnight | Paladin | Warrior
@@ -43,50 +102,36 @@ data Class = Mage | Priest | Warlock | Druid | Rogue | Hunter | Shaman
 instance Serialize Class
 
 data Faction = Alliance | Horde
-    deriving (Show, Read, Generic)
+    deriving (Read, Generic)
+
+instance Show Faction where
+    show Alliance = col [1,37,44] ++ "[Alliance]" ++ col []
+    show Horde = col [1,30,41] ++ "[Horde]" ++ col []
 
 instance Serialize Faction
 
 type Level = Int
 type ItemLevel = Level
 
-data Requirements = Requirements
-    { r_lvl   :: Maybe Level
-    , r_fac   :: Maybe Faction
-    , r_class :: Maybe Class
-    } deriving (Generic, Show)
-
-instance Serialize Requirements
-
-noRequirements :: Requirements
-noRequirements = Requirements Nothing Nothing Nothing
-
 data Item = Item 
     { iid     :: Int
     , iname   :: ByteString 
     , islot   :: Slot
+    , iatype  :: ArmorType
     , istats  :: [(Stat,Int)] 
     , ilevel  :: ItemLevel 
-    , ispells :: [Word32]
-    , ireq    :: Requirements
+    , iqual   :: Quality
+    , irlevel :: Level
     , idesc   :: ByteString
     } deriving Generic
 
 instance Serialize Item
 
 instance Show Item where
-    show i = "#" ++ show (iid i) ++ " " ++ 
-             (unpack $ iname i) ++ " (" ++ 
-             show (islot i) ++ ") " ++
-             (show $ SpacedL $(uncurry (flip Spaced) <$> istats i)) ++ 
-             tab (idesc i) ++ "\n"
-
-tab :: ByteString -> String
-tab bs = do
-    s <- unpack bs
-    case s of
-        '\n' -> "\n\t"
-        i -> return i
+    show i = printf "%s#%s%-5d %s (%s) %s%s%s%s\n" 
+        (col [1,36]) (col [0,36]) (iid i) (qualc i ++ (unpack $ iname i) ++ col [])
+        (appendAT (show $ islot i) (iatype i)) (show $ SpacedL $ uncurry (flip Spaced) <$> istats i)
+        (col [32]) (tab $ idesc i) (col [])
 
 data Spell = Spell
     { sid     :: Word32
@@ -110,6 +155,16 @@ instance Gettable Spell where
         desc <- get' strs
         return $ Spell id (n+1) (t1,t2) (replaceSubstring "$s1" (pack $ show (n+1)) desc)
 
+data Quest = Quest 
+    { qid     :: Int
+    , qname   :: ByteString
+    , qlevel  :: Level
+    , qfac    :: Maybe Faction
+    , qitems  :: [Int]
+    } deriving (Show, Generic)
+
+instance Serialize Quest where
+
 getSpellStats :: Spell -> Maybe (Stat,Int)
 getSpellStats sp = (\i -> (i, fromIntegral $ sval sp)) <$> case (stype sp) of
     (135,126) -> Just SpellPower
@@ -123,16 +178,13 @@ getSpellStats sp = (\i -> (i, fromIntegral $ sval sp)) <$> case (stype sp) of
     (189,4)   -> Just Parry
     (189,8)   -> Just Dodge
     (189,224) -> Just Hit
-    (189,1782)-> Just Crit
-    (189,1792)-> Just Crit
-    (189,16777216) -> Just ArmorPen
+    (189,1782)   -> Just Crit
+    (189,1792)   -> Just Crit
+    (189,16777216)  -> Just ArmorPen
     _ -> Nothing
 
-getSpellItems :: Spell -> [Item] -> [Item]
-getSpellItems sp is = L.filter (\s -> L.any (== sid sp) (ispells s)) is
-
 instance Show Stat where
-    show a = case a of
+    show a = (\s -> "\ESC[1;37m\STX" ++ s ++ "\ESC[0;37m\STX") $ case a of
         Mana      -> "mana"
         HP        -> "hp"
         Agility   -> "agi"
@@ -226,6 +278,7 @@ instance Enum Slot where
         17  -> TwoHand
         18  -> Bag
         19  -> Tabard
+        20  -> Chest
         21  -> MainHand
         22  -> OffHand
         23  -> HandHeld
@@ -255,3 +308,25 @@ replaceSubstring needle rep hay =
     case breakSubstring needle hay of
         (l,"") -> l
         (l,r) -> l `B.append` rep `B.append` (replaceSubstring needle rep $ B.drop (B.length needle) r) 
+
+--
+-- utils
+--
+
+col [] = col [0]
+col xs = "\ESC[" ++ foldl1 (\s s' -> s ++ ";" ++ s') (show <$> xs) ++ "m\STX"
+
+sample' = Prelude.putStrLn $ L.unlines $ fmap L.concat $ 
+          (fmap (\i -> printf "%s Nigger %3d %s " (col [i]) i (col []))) 
+          <$> formatting numbers where
+    numbers = L.concat [[0..5], [7..9], [30..38], [40..48]
+                       , [90..98], [100..107 :: Int]]
+    formatting str = (\(b,a) -> b:(if L.null a then [] else formatting a)) (L.splitAt 4 str)
+
+tab :: ByteString -> String
+tab bs = do
+    s <- unpack bs
+    case s of
+        '\n' -> "\n\t"
+        i -> return i
+

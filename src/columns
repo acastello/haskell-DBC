@@ -1,3 +1,5 @@
+item_template:
+
 0       entry                       mediumint(8) unsigned
 1       class                       tinyint(3) unsigned
 2       subclass                    tinyint(3) unsigned
@@ -137,3 +139,111 @@
 136     maxMoneyLoot                int(10) unsigned
 137     flagsCustom                 int(10) unsigned
 138     VerifiedBuild               smallint(5)
+
+quest_template:
+
+0       ID                          mediumint(8) unsigned
+1       QuestType                   tinyint(3) unsigned
+2       QuestLevel                  smallint(3)
+3       MinLevel                    tinyint(3) unsigned
+4       QuestSortID                 smallint(6)
+5       QuestInfoID                 smallint(5) unsigned
+6       SuggestedGroupNum           tinyint(3) unsigned
+7       RequiredFactionId1          smallint(5) unsigned
+8       RequiredFactionId2          smallint(5) unsigned
+9       RequiredFactionValue1       mediumint(8)
+10      RequiredFactionValue2       mediumint(8)
+11      RewardNextQuest             mediumint(8) unsigned
+12      RewardXPDifficulty          tinyint(3) unsigned
+13      RewardMoney                 int(11)
+14      RewardBonusMoney            int(10) unsigned
+15      RewardDisplaySpell          mediumint(8) unsigned
+16      RewardSpell                 int(11)
+17      RewardHonor                 int(11)
+18      RewardKillHonor             float
+19      StartItem                   mediumint(8) unsigned
+20      Flags                       int(10) unsigned
+21      RequiredPlayerKills         tinyint(3) unsigned
+22      RewardItem1                 mediumint(8) unsigned
+23      RewardAmount1               smallint(5) unsigned
+24      RewardItem2                 mediumint(8) unsigned
+25      RewardAmount2               smallint(5) unsigned
+26      RewardItem3                 mediumint(8) unsigned
+27      RewardAmount3               smallint(5) unsigned
+28      RewardItem4                 mediumint(8) unsigned
+29      RewardAmount4               smallint(5) unsigned
+30      ItemDrop1                   mediumint(8) unsigned
+31      ItemDropQuantity1           smallint(5) unsigned
+32      ItemDrop2                   mediumint(8) unsigned
+33      ItemDropQuantity2           smallint(5) unsigned
+34      ItemDrop3                   mediumint(8) unsigned
+35      ItemDropQuantity3           smallint(5) unsigned
+36      ItemDrop4                   mediumint(8) unsigned
+37      ItemDropQuantity4           smallint(5) unsigned
+38      RewardChoiceItemID1         mediumint(8) unsigned
+39      RewardChoiceItemQuantity1   smallint(5) unsigned
+40      RewardChoiceItemID2         mediumint(8) unsigned
+41      RewardChoiceItemQuantity2   smallint(5) unsigned
+42      RewardChoiceItemID3         mediumint(8) unsigned
+43      RewardChoiceItemQuantity3   smallint(5) unsigned
+44      RewardChoiceItemID4         mediumint(8) unsigned
+45      RewardChoiceItemQuantity4   smallint(5) unsigned
+46      RewardChoiceItemID5         mediumint(8) unsigned
+47      RewardChoiceItemQuantity5   smallint(5) unsigned
+48      RewardChoiceItemID6         mediumint(8) unsigned
+49      RewardChoiceItemQuantity6   smallint(5) unsigned
+50      POIContinent                smallint(5) unsigned
+51      POIx                        float
+52      POIy                        float
+53      POIPriority                 mediumint(8) unsigned
+54      RewardTitle                 tinyint(3) unsigned
+55      RewardTalents               tinyint(3) unsigned
+56      RewardArenaPoints           smallint(5) unsigned
+57      RewardFactionID1            smallint(5) unsigned
+58      RewardFactionValue1         mediumint(8)
+59      RewardFactionOverride1      mediumint(8)
+60      RewardFactionID2            smallint(5) unsigned
+61      RewardFactionValue2         mediumint(8)
+62      RewardFactionOverride2      mediumint(8)
+63      RewardFactionID3            smallint(5) unsigned
+64      RewardFactionValue3         mediumint(8)
+65      RewardFactionOverride3      mediumint(8)
+66      RewardFactionID4            smallint(5) unsigned
+67      RewardFactionValue4         mediumint(8)
+68      RewardFactionOverride4      mediumint(8)
+69      RewardFactionID5            smallint(5) unsigned
+70      RewardFactionValue5         mediumint(8)
+71      RewardFactionOverride5      mediumint(8)
+72      TimeAllowed                 int(10) unsigned
+73      AllowableRaces              smallint(5) unsigned
+74      LogTitle                    text
+75      LogDescription              text
+76      QuestDescription            text
+77      AreaDescription             text
+78      QuestCompletionLog          text
+79      RequiredNpcOrGo1            mediumint(8)
+80      RequiredNpcOrGo2            mediumint(8)
+81      RequiredNpcOrGo3            mediumint(8)
+82      RequiredNpcOrGo4            mediumint(8)
+83      RequiredNpcOrGoCount1       smallint(5) unsigned
+84      RequiredNpcOrGoCount2       smallint(5) unsigned
+85      RequiredNpcOrGoCount3       smallint(5) unsigned
+86      RequiredNpcOrGoCount4       smallint(5) unsigned
+87      RequiredItemId1             mediumint(8) unsigned
+88      RequiredItemId2             mediumint(8) unsigned
+89      RequiredItemId3             mediumint(8) unsigned
+90      RequiredItemId4             mediumint(8) unsigned
+91      RequiredItemId5             mediumint(8) unsigned
+92      RequiredItemId6             mediumint(8) unsigned
+93      RequiredItemCount1          smallint(5) unsigned
+94      RequiredItemCount2          smallint(5) unsigned
+95      RequiredItemCount3          smallint(5) unsigned
+96      RequiredItemCount4          smallint(5) unsigned
+97      RequiredItemCount5          smallint(5) unsigned
+98      RequiredItemCount6          smallint(5) unsigned
+99      Unknown0                    tinyint(3) unsigned
+100     ObjectiveText1              text
+101     ObjectiveText2              text
+102     ObjectiveText3              text
+103     ObjectiveText4              text
+104     VerifiedBuild               smallint(5)
