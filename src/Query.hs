@@ -49,6 +49,11 @@ by_irlevel = mkC irlevel
 by_idesc = mkC idesc
 by_score tab = mkC (score tab . istats)
 
+by_sid = mkC sid
+by_sval = mkC sval
+by_stype = mkC stype
+by_sdesc = mkC sdesc
+
 score :: [(Stat,Double)] -> [(Stat,Int)] -> Double
 score tab hay = L.sum $ do
     (s,v) <- tab

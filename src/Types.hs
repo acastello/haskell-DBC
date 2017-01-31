@@ -168,7 +168,8 @@ instance Serialize Quest where
 getSpellStats :: Spell -> Maybe (Stat,Int)
 getSpellStats sp = (\i -> (i, fromIntegral $ sval sp)) <$> case (stype sp) of
     (135,126) -> Just SpellPower
-    (13,126)  -> Just SpellPower
+    (13, n)   
+      | L.any (==n) [2,4,8,16,32,64,126] -> Just SpellPower
     (99,0)    -> Just AttackPower
     (85,0)    -> Just ManaPer5
     (123,124) -> Just SpellPen
