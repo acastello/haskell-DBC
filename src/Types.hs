@@ -5,6 +5,8 @@
 
 module Types where
 
+import Control.Monad 
+
 import Data.ByteString.Char8 hiding (foldl1)
 import qualified Data.ByteString.Char8 as B
 import Data.Int
@@ -133,14 +135,16 @@ instance Show Item where
         (appendAT (show $ islot i) (iatype i)) (show $ SpacedL $ uncurry (flip Spaced) <$> istats i)
         (col [32]) (tab $ idesc i) (col [])
 
+type SpellId = Word32
+
 data Spell = Spell
-    { sid     :: Word32
+    { sid     :: SpellId
     , sval    :: Int32
     , stype   :: (Word32, Word32)
     , sdesc   :: ByteString
     } deriving (Show, Generic)
 
-instance Serialize Spell
+instance Serialize Spell where
 
 instance Gettable Spell where
     get' strs = do
@@ -164,6 +168,21 @@ data Quest = Quest
     } deriving (Show, Generic)
 
 instance Serialize Quest where
+
+type SuffixId = Word32
+data SuffixEntry = SuffixEntry
+    { se_id     :: SuffixId
+    , se_suffix :: ByteString
+    , se_enchs  :: [SpellId]
+    } deriving (Show, Generic)
+
+instance Gettable SuffixEntry where
+    get' strs = do
+        id <- get' strs
+        suffix <- get' strs
+        skip (4*17)
+        es <- replicateM 5 (get' strs)
+        return $ SuffixEntry id suffix (L.filter (/=0) es)
 
 getSpellStats :: Spell -> Maybe (Stat,Int)
 getSpellStats sp = (\i -> (i, fromIntegral $ sval sp)) <$> case (stype sp) of
