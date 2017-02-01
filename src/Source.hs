@@ -12,6 +12,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.IntMap as M
 import qualified Data.List as L
+import qualified Data.Map as Ma
 import Data.Maybe
 import Data.Scientific
 import Data.Serialize
@@ -35,6 +36,23 @@ q tab = do
     ret <- S.toList . snd =<< query_ conn tab
     close conn
     return ret
+
+querySuffixes :: IO (M.IntMap [(SuffixId, Int)])
+querySuffixes = 
+    queryToMap <$> q "SELECT `item_template`.`entry`, `item_enchantment_template`.`ench`, `item_enchantment_template`.`chance` FROM `item_enchantment_template`,`item_template` WHERE `item_template`.`RandomSuffix` = `item_enchantment_template`.`entry`"
+
+queryProperties :: IO (M.IntMap [(SuffixId, Int)])
+queryProperties =
+    queryToMap <$> q "SELECT `item_template`.`entry`, `item_enchantment_template`.`ench`, `item_enchantment_template`.`chance` FROM `item_enchantment_template`,`item_template` WHERE `item_template`.`RandomProperty` = `item_enchantment_template`.`entry`"
+
+queryToMap res =
+    let f xs [] = [(fs$ xs!!0, [(fs$ xs!!1, fs$ xs!!2)])]
+        f xs ((j,ys):zs) = 
+            let i = fs (xs!!0)
+                x = fs (xs!!1)
+                c = fs (xs!!2)
+            in if i == j then (j,(x,c):ys):zs else (i,[(x,c)]):(j,ys):zs
+    in M.fromList $ L.foldr f [] res
 
 instance Serialize Text where
     put txt = put $ encodeUtf8 txt
@@ -96,12 +114,40 @@ loadSpells = load "spells.gz"
 saveSpells :: M.IntMap Spell -> IO ()
 saveSpells sp = save "spells.gz" sp
 
+saveSuffixes :: M.IntMap SuffixEntry -> IO ()
+saveSuffixes = save "suffixes.gz"
+
+loadSuffixes :: IO (M.IntMap SuffixEntry)
+loadSuffixes = load "suffixes.gz"
+
+saveProperties :: M.IntMap PropertyEntry -> IO ()
+saveProperties = save "properties.gz"
+
+loadProperties :: IO (M.IntMap PropertyEntry)
+loadProperties = load "properties.gz"
+
+saveEnchantments :: M.IntMap EnchantmentEntry -> IO ()
+saveEnchantments = save "enchantments.gz"
+
+loadEnchantments :: IO (M.IntMap EnchantmentEntry)
+loadEnchantments = load "enchantments.gz"
+
 loadItems :: IO (M.IntMap Item)
 loadItems = load "items.gz"
 
 saveItems :: M.IntMap Item -> IO ()
 saveItems is = save "items.gz" is
 
+loadMappings :: IO Mappings
+loadMappings = do
+    ss <- evaluate =<< loadSpells
+    qs <- evaluate =<< loadQuests
+    i2s <- evaluate =<< load "i2s.gz"
+    i2p <- evaluate =<< load "i2p.gz"
+    suff <- evaluate =<< loadSuffixes
+    ps <- evaluate =<< loadProperties
+    es <- evaluate =<< loadEnchantments
+    evaluate $ Mappings ss qs i2s i2p suff ps es
 
 getQuest :: [MySQLValue] -> Quest
 getQuest e =
@@ -127,14 +173,28 @@ getMainStats entry = catMaybes $ do
     return $ just' (toEnum $ fs $ entry!!(28+2*i)) (fs $ entry!!(29+2*i))
     where n = fs (entry!!27)
 
-getSpells :: [MySQLValue] -> [Int]
-getSpells e = do
+getItemSpells :: [MySQLValue] -> [Int]
+getItemSpells e = do
     i <- fs <$> inds e [66,73,80,87,94]
     if i /= 0 then
         return i
     else
         []
                     
+getEnchMap :: Mappings -> [[MySQLValue]] -> SuffixMap
+getEnchMap m es = undefined
+--     let map = M.fromList $ flip fmap es $ \[MySQLInt32U i, MySQLInt32U e, MySQLFloat c] -> 
+--           (fromIntegral i, (M.lookup (fromIntegral i) (m_suffixes m), M.lookup (fromIntegral i) (m_props m)))
+--         f mmt = (\(s, s')
+--     (suf,enchs) <- join $ case id of
+--         Left i -> case M.lookup (fromIntegral i) map of
+--             Just (Just ss, _) -> (se_suffix ss, su_enchs ss)
+--             _ -> ([],[])
+--         Right i -> case M.lookup (fromIntegral i) map of
+--             Just (_, Just ss) -> (pe_suffix ss, pe_enchs ss)
+--             _ -> ([],[])
+--     in undefined
+
 getItem :: M.IntMap Spell -> M.IntMap Quest -> [MySQLValue] -> Item
 getItem sp qs e =
     let iid = fs (e!!0)
@@ -151,7 +211,7 @@ getItem sp qs e =
                     else 
                       max rlevel (qlevel $ snd $ L.head $ M.toList iqs)
         reqlevel' = if iqual > Uncommon && reqlevel == 0 then -1 else reqlevel
-        ispells = getSpells e
+        ispells = getItemSpells e
         ispells' = catMaybes $ flip M.lookup sp <$> ispells -- foldMap (\s -> L.filter (\s' -> s == sid s') sp) ispells
         istats' = catMaybes $ getSpellStats <$> ispells'
     in Item iid iname islot iatype (istats++istats') ilevel iqual reqlevel'
@@ -174,7 +234,7 @@ just' a b = (,) a <$> just b
 inds :: [a] -> [Int] -> [a]
 inds entry indices = (!!) <$> pure entry <*> indices
 
-fs :: Num a => MySQLValue -> a
+fs :: (Integral a, Num a) => MySQLValue -> a
 fs i = case i of
     MySQLInt8 n -> fromIntegral n
     MySQLInt8U n -> fromIntegral n
@@ -184,3 +244,4 @@ fs i = case i of
     MySQLInt32U n -> fromIntegral n
     MySQLInt64 n -> fromIntegral n
     MySQLInt64U n -> fromIntegral n
+    MySQLFloat n -> ceiling n

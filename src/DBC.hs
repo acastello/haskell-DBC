@@ -2,12 +2,14 @@
 
 module DBC where
 
+import Control.Monad
+
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as BL
 import Data.ByteString.Lazy
 import Data.Int
+import qualified Data.IntMap as M
 import Data.Serialize
-import Data.Vector
 import qualified Data.Vector as V
 import Data.Word 
 
@@ -62,7 +64,7 @@ data DBC a = DBC
     , ncols :: Word32
     , rsize :: Word32
     , ssize :: Word32
-    , rows  :: Vector a
+    , rows  :: M.IntMap a
     , strs  :: ByteString
     } deriving Show
 
@@ -86,12 +88,15 @@ readDBC fp = do
         e <- getWord32le
         s <- getWord32le
         return (r,c,e,s)
-    v <- generateM (fi r) (\_ -> hGet h (fi e))
+    v <- fmap M.fromList $ replicateM (fi r) $ do
+        str <- hGet h (fi e)
+        let i = either error id $ runGetLazy getWord32le str
+        return (fi i,str)
     strs <- hGet h (fi s)
     hClose h
     return $ DBC r c e s v strs
 
-decodeDBC :: Gettable a => DBC ByteString -> Either String (Vector a)
+decodeDBC :: Gettable a => DBC ByteString -> Either String (M.IntMap a)
 decodeDBC dbc = traverse (runGetLazy $ get' (strs dbc)) (rows dbc)
 
 --

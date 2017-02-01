@@ -10,7 +10,9 @@ import Control.Monad
 import Data.ByteString.Char8 hiding (foldl1)
 import qualified Data.ByteString.Char8 as B
 import Data.Int
+import qualified Data.IntMap as M
 import qualified Data.List as L
+import qualified Data.Map as Ma
 import Data.Maybe
 import qualified Data.Vector as V
 import Data.Serialize
@@ -21,6 +23,17 @@ import GHC.Generics
 import Text.Printf (printf)
 
 import DBC
+
+data Mappings = Mappings
+    { m_spells    :: M.IntMap Spell
+    , m_quests    :: M.IntMap Quest
+    , m_i2s       :: M.IntMap [(SuffixId, Int)]
+    , m_i2p       :: M.IntMap [(PropertyId, Int)]
+    , m_suffixes  :: M.IntMap SuffixEntry
+    , m_props     :: M.IntMap PropertyEntry
+    , m_enchs     :: M.IntMap EnchantmentEntry
+    }
+
 
 data Slot = Head | Neck | Shoulder | Back | Chest | Waist | Legs | Wrists
     | Hands | Feet | Finger | Trinket | MainHand | OffHand | Weapon | TwoHand
@@ -132,9 +145,9 @@ instance Serialize Item
 instance Show Item where
     show i = printf "%s#%s%-5d %s (%s) %s%s%s%s\n" 
         (col [1,36]) (col [0,36]) (iid i) (qualc i ++ (unpack $ iname i) ++ col [])
-        (appendAT (show $ islot i) (iatype i)) (show $ SpacedL $ uncurry (flip Spaced) <$> istats i)
+        (appendAT (show $ islot i) (iatype i)) (showStats $ istats i)
         (col [32]) (tab $ idesc i) (col [])
-
+        
 type SpellId = Word32
 
 data Spell = Spell
@@ -173,8 +186,10 @@ type SuffixId = Word32
 data SuffixEntry = SuffixEntry
     { se_id     :: SuffixId
     , se_suffix :: ByteString
-    , se_enchs  :: [SpellId]
+    , se_enchs  :: [EnchantmentId]
     } deriving (Show, Generic)
+
+instance Serialize SuffixEntry where
 
 instance Gettable SuffixEntry where
     get' strs = do
@@ -183,6 +198,59 @@ instance Gettable SuffixEntry where
         skip (4*17)
         es <- replicateM 5 (get' strs)
         return $ SuffixEntry id suffix (L.filter (/=0) es)
+
+type PropertyId = Word32
+data PropertyEntry = PropertyEntry 
+    { pe_id     :: PropertyId
+    , pe_suffix :: ByteString
+    , pe_enchs  :: [EnchantmentId]
+    } deriving (Show, Generic)
+
+instance Serialize PropertyEntry where
+
+instance Gettable PropertyEntry where
+    get' strs = do
+        id <- get' strs
+        suffix <- get' strs
+        es <- replicateM 3 (get' strs)
+        return $ PropertyEntry id suffix (L.filter (/= 0) es)
+
+type EnchantmentId = Word32
+data EnchantmentEntry = EnchantmentEntry
+    { ee_id     :: EnchantmentId
+    , ee_stats  :: [(Stat,Int)]
+    , ee_spells :: [SpellId]
+    } deriving (Show, Generic)
+
+instance Serialize EnchantmentEntry where
+
+instance Gettable EnchantmentEntry where
+    get' strs = do
+        id <- get' strs
+        skip 4
+        ts <- replicateM 3 getWord32le
+        ns <- replicateM 3 getWord32le
+        skip (3*4)
+        ss <- replicateM 3 getWord32le
+        let (stats, spells) = (\(a,b) -> (L.concat a, L.concat b)) $ L.unzip $
+                zipWith3 (\t n s -> case t of
+                    5 -> ([(toEnum $ fromIntegral s, fromIntegral n)], [])
+                    3 -> ([], [fromIntegral s])
+                    _ -> ([], [])) ts ns ss
+        return $ EnchantmentEntry id stats spells
+
+type SuffixMap = Ma.Map (Either SuffixId PropertyId) [Suffix]
+
+data Suffix = Suffix
+    { su_suffix :: ByteString
+    , su_chance :: Int
+    , su_stats  :: [(Stat, Int)]
+    } 
+
+instance Show Suffix where
+    show su = col [1,3,32] ++ unpack (su_suffix su) ++ col [0,3] ++ " (" ++ 
+              show (su_chance su) ++ " %) " ++ showStats (su_stats su) ++ col [23]
+
 
 getSpellStats :: Spell -> Maybe (Stat,Int)
 getSpellStats sp = (\i -> (i, fromIntegral $ sval sp)) <$> case (stype sp) of
@@ -204,7 +272,7 @@ getSpellStats sp = (\i -> (i, fromIntegral $ sval sp)) <$> case (stype sp) of
     _ -> Nothing
 
 instance Show Stat where
-    show a = (\s -> "\ESC[1;37m\STX" ++ s ++ "\ESC[0;37m\STX") $ case a of
+    show a = (\s -> "\ESC[1m\STX" ++ s ++ "\ESC[21m\STX") $ case a of
         Mana      -> "mana"
         HP        -> "hp"
         Agility   -> "agi"
@@ -235,7 +303,7 @@ instance Show Stat where
         ArmorPen  -> "arpen"
         SpellPen  -> "spen"
         Vitality  -> "hp5"
-        UnknownStat n -> "?? " ++ show n
+        UnknownStat n -> col [7] ++ "?? " ++ show n
 
 instance Enum Stat where
     fromEnum = undefined
@@ -350,3 +418,10 @@ tab bs = do
         '\n' -> "\n\t"
         i -> return i
 
+showStats :: [(Stat, Int)] -> String
+showStats stats = show $ SpacedL $ uncurry (flip Spaced) <$> stats
+
+f a b= do
+    a' <- a
+    b' <- b
+    return (a',b')
