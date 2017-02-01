@@ -37,12 +37,12 @@ q tab = do
     close conn
     return ret
 
-querySuffixes :: IO (M.IntMap [(SuffixId, Float)])
-querySuffixes = 
+queryI2s :: IO (M.IntMap [(SuffixId, Float)])
+queryI2s = 
     queryToMap <$> q "SELECT `item_template`.`entry`, `item_enchantment_template`.`ench`, `item_enchantment_template`.`chance` FROM `item_enchantment_template`,`item_template` WHERE `item_template`.`RandomSuffix` = `item_enchantment_template`.`entry`"
 
-queryProperties :: IO (M.IntMap [(PropertyId, Float)])
-queryProperties =
+queryI2p :: IO (M.IntMap [(PropertyId, Float)])
+queryI2p =
     queryToMap <$> q "SELECT `item_template`.`entry`, `item_enchantment_template`.`ench`, `item_enchantment_template`.`chance` FROM `item_enchantment_template`,`item_template` WHERE `item_template`.`RandomProperty` = `item_enchantment_template`.`entry`"
 
 queryToMap res =
@@ -198,11 +198,11 @@ getSuffix ss su ch st sl = Suffix su ch $ st ++ do
 
 groupSuffixes :: [Suffix] -> [Suffix]
 groupSuffixes xs = do
-    (suf, s) <- group' (\s' -> (su_suffix s', s')) xs
+    (suf, s) <- group' $ (\s' -> (su_suffix s', s')) <$> xs
     return $ merge suf s where
-    merge nam ss = Suffix nam (mergeChances ss) (maxStats ss)
-    mergeChances ss = 1 - (L.product $ (1-) <$> su_chance <$> ss)
-    maxStats ss = (\(a,b) -> (a, L.sum b)) <$> group' (L.sort $ foldMap su_stats ss)
+        merge nam ss = Suffix nam (mergeChances ss) (maxStats ss)
+        mergeChances ss = 100 - 100*(L.product $ (/100) . (100-) <$> su_chance <$> ss)
+        maxStats ss = (\(a,b) -> (a, L.maximum b)) <$> group' (L.sort $ foldMap su_stats ss)
 
 getSuffixMap :: Mappings -> SuffixMap
 getSuffixMap m = M.fromList $ L.concat $
@@ -214,7 +214,7 @@ getSuffixMap m = M.fromList $ L.concat $
                 si <- M.lookup (fromIntegral i) sm
                 es <- traverse (flip M.lookup em) (fromIntegral <$> se_enchs si)
                 return $ getSuffix ss (se_suffix si) c (es >>= ee_stats) (es >>= ee_spells)
-        return (k,s)
+        return (k, L.reverse $ L.sortOn su_chance $ groupSuffixes s)
     , do
         (k, ps) <- M.toList i2p
         let s = do
@@ -223,7 +223,7 @@ getSuffixMap m = M.fromList $ L.concat $
                 pi <- M.lookup (fromIntegral i) pm
                 es <- traverse (flip M.lookup em) (fromIntegral <$> pe_enchs pi)
                 return $ getSuffix ss (pe_suffix pi) c (es >>= ee_stats) (es >>= ee_spells)
-        return (k,s)
+        return (k, L.reverse $ L.sortOn su_chance $ groupSuffixes s)
     ] where 
         ss = m_spells m
         i2s = m_i2s m

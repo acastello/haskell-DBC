@@ -53,7 +53,8 @@ by_ilevel = mkC ilevel
 by_iqual = mkC iqual
 by_irlevel = mkC irlevel
 by_idesc = mkC idesc
-by_score tab = mkC (\i -> score tab (istats i) (su_stats <$> isuffs i))
+by_score tab = mkC (\i -> score tab (istats i) 
+               (su_stats <$> L.filter (\s -> su_chance s > 2) (isuffs i)))
 
 by_sid = mkC sid
 by_sval = mkC sval

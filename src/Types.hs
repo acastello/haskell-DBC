@@ -261,8 +261,9 @@ data Suffix = Suffix
 instance Serialize Suffix where
 
 instance Show Suffix where
-    show su = col [1,3,32] ++ unpack (su_suffix su) ++ col [0,3] ++ " (" ++ 
-              show (su_chance su) ++ " %) " ++ showStats (su_stats su) ++ col [23]
+    show su = printf "%s%s%s (%2.1f %%) %s%s"
+          (col [1,3,32]) (unpack (su_suffix su)) (col [0,3]) 
+          (su_chance su) (showStats (su_stats su)) (col [23])
 
 
 getSpellStats :: Spell -> Maybe (Stat,Int)
