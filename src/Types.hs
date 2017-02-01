@@ -27,11 +27,12 @@ import DBC
 data Mappings = Mappings
     { m_spells    :: M.IntMap Spell
     , m_quests    :: M.IntMap Quest
-    , m_i2s       :: M.IntMap [(SuffixId, Int)]
-    , m_i2p       :: M.IntMap [(PropertyId, Int)]
+    , m_i2s       :: M.IntMap [(SuffixId, Float)]
+    , m_i2p       :: M.IntMap [(PropertyId, Float)]
     , m_suffixes  :: M.IntMap SuffixEntry
     , m_props     :: M.IntMap PropertyEntry
     , m_enchs     :: M.IntMap EnchantmentEntry
+    , m_sufmap    :: SuffixMap
     }
 
 
@@ -78,7 +79,7 @@ data Stat = Mana | HP | Agility | Strength | Intellect | Spirit | Stamina
     | Vitality | SpellPen | BlockValue
     | HolyRes | ShadowRes | FireRes | FrostRes | NatureRes | ArcaneRes 
     | UnknownStat Int
-    deriving (Eq, Read, Generic)
+    deriving (Eq, Read, Generic, Ord)
 
 instance Serialize Stat
 
@@ -134,6 +135,7 @@ data Item = Item
     , islot   :: Slot
     , iatype  :: ArmorType
     , istats  :: [(Stat,Int)] 
+    , isuffs  :: [Suffix]
     , ilevel  :: ItemLevel 
     , iqual   :: Quality
     , irlevel :: Level
@@ -143,10 +145,11 @@ data Item = Item
 instance Serialize Item
 
 instance Show Item where
-    show i = printf "%s#%s%-5d %s (%s) %s%s%s%s\n" 
+    show i = printf "%s#%s%-5d %s (%s) %s%s%s%s%s\n" 
         (col [1,36]) (col [0,36]) (iid i) (qualc i ++ (unpack $ iname i) ++ col [])
-        (appendAT (show $ islot i) (iatype i)) (showStats $ istats i)
-        (col [32]) (tab $ idesc i) (col [])
+        (appendAT (show $ islot i) (iatype i)) 
+        (showStats $ istats i) (col [32]) (tab $ idesc i) (col [])
+        (foldMap ("\n        " ++) (show <$> isuffs i))
         
 type SpellId = Word32
 
@@ -229,23 +232,33 @@ instance Gettable EnchantmentEntry where
         id <- get' strs
         skip 4
         ts <- replicateM 3 getWord32le
-        ns <- replicateM 3 getWord32le
+        ns <- replicateM 3 $ fromIntegral <$> getWord32le
         skip (3*4)
         ss <- replicateM 3 getWord32le
         let (stats, spells) = (\(a,b) -> (L.concat a, L.concat b)) $ L.unzip $
                 zipWith3 (\t n s -> case t of
-                    5 -> ([(toEnum $ fromIntegral s, fromIntegral n)], [])
+                    5 -> ([(toEnum $ fromIntegral s, n)], [])
+                    4 -> case s of
+                        1 -> ([(HolyRes, n)], [])
+                        2 -> ([(FireRes, n)], [])
+                        3 -> ([(NatureRes, n)], [])
+                        4 -> ([(FrostRes, n)], [])
+                        5 -> ([(ShadowRes, n)], [])
+                        6 -> ([(ArcaneRes, n)], [])
+                        _ -> ([], [])
                     3 -> ([], [fromIntegral s])
                     _ -> ([], [])) ts ns ss
         return $ EnchantmentEntry id stats spells
 
-type SuffixMap = Ma.Map (Either SuffixId PropertyId) [Suffix]
+type SuffixMap = M.IntMap [Suffix]
 
 data Suffix = Suffix
     { su_suffix :: ByteString
-    , su_chance :: Int
+    , su_chance :: Float
     , su_stats  :: [(Stat, Int)]
-    } 
+    } deriving Generic
+
+instance Serialize Suffix where
 
 instance Show Suffix where
     show su = col [1,3,32] ++ unpack (su_suffix su) ++ col [0,3] ++ " (" ++ 
@@ -415,7 +428,7 @@ tab :: ByteString -> String
 tab bs = do
     s <- unpack bs
     case s of
-        '\n' -> "\n\t"
+        '\n' -> "\n    "
         i -> return i
 
 showStats :: [(Stat, Int)] -> String
