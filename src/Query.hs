@@ -39,7 +39,7 @@ filters :: Filterable f => [a -> Bool] -> f a -> f a
 filters con = filter' (\e -> L.all ($ e) con)
 
 sorts :: (Listable f, Ord b) => C a b b -> f a -> [a]
-sorts f = L.reverse $ L.sortOn (f id) . toList'
+sorts f = L.reverse . L.sortOn (f id) . toList'
 
 takes = L.take
 
