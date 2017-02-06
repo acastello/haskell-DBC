@@ -5,6 +5,7 @@
 
 module Types where
 
+import Control.DeepSeq
 import Control.Monad 
 
 import Data.ByteString.Char8 hiding (foldl1)
@@ -43,11 +44,16 @@ data Slot = Head | Neck | Shoulder | Back | Chest | Waist | Legs | Wrists
     deriving (Show, Read, Eq, Generic, Ord)
 
 instance Serialize Slot
+instance NFData Slot
+
+isWeapon :: Slot -> Bool
+isWeapon slot = L.any (== slot) [MainHand, OffHand, Weapon, TwoHand, Ranged]
 
 data ArmorType = NotArmor | Cloth | Leather | Mail | Plate
     deriving (Eq, Ord, Generic)
 
 instance Serialize ArmorType
+instance NFData ArmorType
 
 instance Show ArmorType where
     show NotArmor = ""
@@ -76,12 +82,13 @@ appendAT pre at =
 data Stat = Mana | HP | Agility | Strength | Intellect | Spirit | Stamina 
     | Armor | Defense | Dodge | Parry | Block | Hit | Crit | Resilence | Haste 
     | Expertise | AttackPower | HealingPower | ManaPer5 | SpellPower | ArmorPen
-    | Vitality | SpellPen | BlockValue
+    | Vitality | SpellPen | BlockValue | Speed | Damage
     | HolyRes | ShadowRes | FireRes | FrostRes | NatureRes | ArcaneRes 
     | UnknownStat Int
     deriving (Eq, Read, Generic, Ord)
 
 instance Serialize Stat
+instance NFData Stat
 
 data Quality = Poor | Common | Uncommon | Rare | Epic | Legendary
     | Artifact | BtA
@@ -98,6 +105,7 @@ qualc i = col $ case iqual i of
     _         -> [1,36]
 
 instance Serialize Quality
+instance NFData Quality
 
 instance Enum Quality where
     fromEnum = undefined
@@ -116,6 +124,7 @@ data Class = Mage | Priest | Warlock | Druid | Rogue | Hunter | Shaman
     deriving (Show, Read, Generic)
 
 instance Serialize Class
+instance NFData Class
 
 data Faction = Alliance | Horde
     deriving (Read, Generic)
@@ -125,6 +134,7 @@ instance Show Faction where
     show Horde = col [1,30,41] ++ "[Horde]" ++ col []
 
 instance Serialize Faction
+instance NFData Faction
 
 type Level = Int
 type ItemLevel = Level
@@ -143,6 +153,7 @@ data Item = Item
     } deriving Generic
 
 instance Serialize Item
+instance NFData Item
 
 instance Show Item where
     show i = printf "%s#%s%-5d %s (%s) %s%s%s%s%s\n" 
@@ -258,7 +269,8 @@ data Suffix = Suffix
     , su_stats  :: [(Stat, Int)]
     } deriving Generic
 
-instance Serialize Suffix where
+instance Serialize Suffix 
+instance NFData Suffix
 
 instance Show Suffix where
     show su = printf "%s%s%s (%2.1f %%) %s%s"
@@ -308,6 +320,8 @@ instance Show Stat where
         HealingPower  -> "heal"
         SpellPower    -> "sp"
         BlockValue    -> "blkv"
+        Speed     -> "delay"
+        Damage    -> "dmg"
         HolyRes   -> "holy-r"
         ShadowRes -> "shad-r"
         FireRes   -> "fire-r"
@@ -435,7 +449,3 @@ tab bs = do
 showStats :: [(Stat, Int)] -> String
 showStats stats = show $ SpacedL $ uncurry (flip Spaced) <$> stats
 
-f a b= do
-    a' <- a
-    b' <- b
-    return (a',b')

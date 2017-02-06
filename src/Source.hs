@@ -4,6 +4,7 @@ module Source where
 
 import Codec.Compression.GZip
 
+import Control.DeepSeq
 import Control.Exception (evaluate)
 
 import qualified Data.Array as A
@@ -250,8 +251,13 @@ getItem m e =
         iname = (\(MySQLText t) -> encodeUtf8 t) (e!!4)
         iqual = toEnum $ fs (e!!6)
         islot = toEnum $ fs (e!!12)
+        weaponstats = 
+            if isWeapon islot then 
+                [(Damage, (fs (e!!50) + fs (e!!51)) `quot` 2), (Speed, fs (e!!63))]
+            else
+                []
         iatype = toEnum $ fs (e!!108)
-        istats = (getMainStats e) ++ (getRes e)
+        istats = weaponstats ++ (getMainStats e) ++ (getRes e)
         isuffs = L.concat $ maybeToList $ M.lookup iid (m_sufmap m)
         ilevel = fs (e!!15)
         rlevel = fs (e!!16)
@@ -271,7 +277,8 @@ getItems :: IO (M.IntMap Item)
 getItems = do
     irs <- evaluate =<< loadResult "item_template.gz"
     m <- loadMappings
-    evaluate $ M.fromList $ fmap (\x -> (iid x, x)) $ getItem m <$> irs
+    let ret = M.fromList $ fmap (\x -> (iid x, x)) $ getItem m <$> irs
+    deepseq ret (return ret)
 
 
 just :: (Eq a, Num a) => a -> Maybe a
