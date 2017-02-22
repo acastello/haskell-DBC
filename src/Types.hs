@@ -97,7 +97,7 @@ data Quality = Poor | Common | Uncommon | Rare | Epic | Legendary
 qualc :: Item -> String
 qualc i = col $ case iqual i of
     Poor      -> []
-    Common    -> [1]
+    Common    -> [0,1]
     Uncommon  -> [1,32]
     Rare      -> [1,34]
     Epic      -> [1,35]
@@ -437,6 +437,12 @@ sample' = Prelude.putStrLn $ L.unlines $ fmap L.concat $
           <$> formatting numbers where
     numbers = L.concat [[0..5], [7..9], [30..38], [40..48]
                        , [90..98], [100..107 :: Int]]
+    formatting str = (\(b,a) -> b:(if L.null a then [] else formatting a)) (L.splitAt 4 str)
+
+sample'' = Prelude.putStrLn $ L.unlines $ fmap L.concat $
+           (fmap (\i -> printf "%s Nig%sger %d %s " (col [0,1,3,4,36]) (col [i]) i (col [])))
+           <$> formatting numbers where
+    numbers = L.concat [[8..29 :: Int]]
     formatting str = (\(b,a) -> b:(if L.null a then [] else formatting a)) (L.splitAt 4 str)
 
 tab :: ByteString -> String
