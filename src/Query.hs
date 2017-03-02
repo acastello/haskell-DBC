@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, ExistentialQuantification, PolyKinds #-}
+{-# LANGUAGE MultiParamTypeClasses, ExistentialQuantification, TypeFamilies #-}
 
 module Query where
 
@@ -15,20 +15,18 @@ import Raw_items
 
 type C a b c = (b -> c) -> a -> c
 
-class Filterable f where
-    filter' :: (a -> Bool) -> f a -> f a
+class Filterable (f :: * -> *) v where
+    type Key f :: *
+    filter' :: (Key f -> Bool) -> f v -> f v
 
-class Filterable2 f where
-    filter'' :: (a -> b -> Bool) -> f a b -> f a b
+-- class Filterable2 f where
+    -- filter'' :: (a -> b -> Bool) -> f a b -> f a b
 
-instance Filterable [] where
+instance Filterable [] v where
     filter' = L.filter
 
-instance Filterable M.IntMap where
+instance Filterable (M.IntMap a) where
     filter' = M.filter
-
-instance Filterable2 Ma.Map where
-    filter'' = Ma.filterWithKey
 
 class Listable f where
     toList' :: f a -> [a]
