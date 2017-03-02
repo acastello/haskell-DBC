@@ -33,7 +33,7 @@ import DBC
 
 q tab = do
     conn <- connect defaultConnectInfo { ciUser = "guest"
-        , ciHost = "192.168.1.111", ciDatabase = "world" }
+        , ciHost = "192.168.1.124", ciDatabase = "world" }
     ret <- S.toList . snd =<< query_ conn tab
     close conn
     return ret
@@ -54,6 +54,23 @@ queryToMap res =
                 c = ffs (xs!!2)
             in if i == j then (j,(x,c):ys):zs else (i,[(x,c)]):(j,ys):zs
     in M.fromList $ L.foldr f [] res
+
+queryGameObjects :: IO GameObjects
+queryGameObjects = do
+    q' <- q "SELECT `entry`,`name`,`position_x`,`position_y`,`position_z`,`map` FROM `gameobject`,`gameobject_template` WHERE `id` = `entry` ORDER BY `entry`"
+    return $ Ma.fromList $ groupd $ (getGO <$> q') where
+        groupd :: [(GameObject, Point)] -> [(GameObject, [Point])]
+        groupd xs = groupGO <$> L.groupBy (\a b -> fst a == fst b) xs
+        groupGO :: [(GameObject, Point)] -> (GameObject, [Point])
+        groupGO [] = error "empty GameObject Point pair"
+        groupGO xs = (fst $ L.head xs, snd <$> xs)
+        getGO q =
+            let i = fs (q!!0)
+                n = (\(MySQLText t) -> encodeUtf8 t) (q!!1)
+                [x,y,z] = ffs <$> [q!!2, q!!3, q!!4]
+                m = fs (q!!5)
+            in (GameObject i n, Point x y z m)
+                
 
 instance Serialize Text where
     put txt = put $ encodeUtf8 txt
@@ -139,6 +156,11 @@ saveSuffixMap = save "suffixMap.gz"
 loadSuffixMap :: IO SuffixMap
 loadSuffixMap = load "suffixMap.gz"
 
+saveGameObjects :: GameObjects -> IO ()
+saveGameObjects = save "gameobjects.gz"
+
+loadGameObjects :: IO GameObjects
+loadGameObjects = load "gameobjects.gz"
 
 loadItems :: IO (M.IntMap Item)
 loadItems = load "items.gz"

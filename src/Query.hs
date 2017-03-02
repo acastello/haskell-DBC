@@ -1,9 +1,10 @@
-{-# LANGUAGE MultiParamTypeClasses, ExistentialQuantification #-}
+{-# LANGUAGE MultiParamTypeClasses, ExistentialQuantification, PolyKinds #-}
 
 module Query where
 
 import qualified Data.ByteString as B
 import qualified Data.IntMap as M
+import qualified Data.Map as Ma
 import qualified Data.List as L
 
 import System.Process (callCommand)
@@ -17,11 +18,17 @@ type C a b c = (b -> c) -> a -> c
 class Filterable f where
     filter' :: (a -> Bool) -> f a -> f a
 
+class Filterable2 f where
+    filter'' :: (a -> b -> Bool) -> f a b -> f a b
+
 instance Filterable [] where
     filter' = L.filter
 
 instance Filterable M.IntMap where
     filter' = M.filter
+
+instance Filterable2 Ma.Map where
+    filter'' = Ma.filterWithKey
 
 class Listable f where
     toList' :: f a -> [a]

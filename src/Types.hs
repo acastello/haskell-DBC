@@ -277,6 +277,39 @@ instance Show Suffix where
           (col [1,3,32]) (unpack (su_suffix su)) (col [0,3]) 
           (su_chance su) (showStats (su_stats su)) (col [23])
 
+data Point = Point
+    { p_x :: Float
+    , p_y :: Float
+    , p_z :: Float
+    , p_m :: Int
+    } deriving Generic
+
+instance Serialize Point
+
+instance Show Point where
+    show p = printf "%s(%s%.3f%s,%s %.3f%s,%s %.3f%s)%s %s%-3d%s %s%s%s" 
+        (col [1]) (col []) (p_x p) (col [1]) (col []) (p_y p) (col [1]) (col []) 
+        (p_z p) (col [1]) (col [])  (col [32]) (p_m p) (col [38]) (col [1])
+        (maybe "<unknown>" id $ M.lookup (p_m p) mapMap) (col [])
+
+type GameObjects = Ma.Map GameObject [Point]
+
+data GameObject = GameObject
+    { go_id   :: Int
+    , go_name :: ByteString
+    } deriving Generic
+
+instance Eq GameObject where
+    go == go' = go_id go == go_id go'
+
+instance Ord GameObject where
+    compare go go' = compare (go_id go) (go_id go')
+
+instance Serialize GameObject
+
+instance Show GameObject where
+    show go = printf "%s#%s%d%s %s"
+        (col [1,36]) (col [0,36]) (go_id go) (col []) (unpack $ go_name go)
 
 getSpellStats :: Spell -> Maybe (Stat,Int)
 getSpellStats sp = (\i -> (i, fromIntegral $ sval sp)) <$> case (stype sp) of
@@ -455,3 +488,67 @@ tab bs = do
 showStats :: [(Stat, Int)] -> String
 showStats stats = show $ SpacedL $ uncurry (flip Spaced) <$> stats
 
+mapMap :: M.IntMap String
+mapMap = M.fromList 
+    [ (0,   "Eastern Kingdoms")
+    , (1,   "Kalimdor")
+    , (33,  "Shadowfang Keep")
+    , (34,  "Stormwind Stockade")
+    , (36,  "Deadmines")
+    , (43,  "Wailing Cavers")
+    , (47,  "Razorfen Kraul")
+    , (48,  "Blackfathom Deeps")
+    , (70,  "Uldaman")
+    , (90,  "Gnomeregan")
+    , (109, "Sunken Temple")
+    , (129, "Razorfen Downs")
+    , (189, "Scarlet Monastery")
+    , (209, "Zul'Farrak")
+    , (229, "Blackrock Spire")
+    , (230, "Blackrock Depths")
+    , (289, "Scholomance")
+    , (309, "Zul'gurub")
+    , (329, "Stratholme")
+    , (349, "Mauradon")
+    , (389, "Ragefire Chasm")
+    , (409, "Molten Core")
+    , (429, "Dire Maul")
+    , (469, "Blackwing Lair")
+    , (509, "Ruins of Ahn'Qiraj")
+    , (531, "Ahn'Qiraj Temple")
+    , (533, "Naxxramas")
+    -- Outland
+    , (530, "Outland")
+    , (542, "Blood Furnace")
+    , (543, "Hellfire Ramparts")
+    , (546, "The Underbog")
+    , (547, "Slave Pens")
+    , (550, "Tempest Keep")
+    , (552, "The Arcatraz")
+    , (553, "The Botanica")
+    , (554, "The Mechanar")
+    , (555, "Shadow Labyrinth")
+    , (556, "Sethekk Halls")
+    , (557, "Mana-Tombs")
+    , (558, "Auchenai Crypts")
+    , (565, "Gruul's Lair")
+    -- Northrend
+    , (571, "Northrend")
+    , (574, "Utgarde Keep")
+    , (575, "Utgarde Pinnacle")
+    , (576, "The Nexus")
+    , (578, "The Oculus")
+    , (595, "The Culling of Statholme")
+    , (599, "Halls of Lightning")
+    , (600, "Drak'Tharon Keep")
+    , (601, "Azjol-Nerub")
+    , (602, "Halls of Stone")
+    , (603, "Ulduar")
+    , (604, "Gundrak")
+    , (615, "The Obsidian Sanctum")
+    , (619, "Ahn'kahet")
+    , (624, "Vault of Archavon")
+    , (631, "Icecrown Citadel")
+    , (632, "The Forge of Souls")
+    -- , (
+    ]
