@@ -58,18 +58,13 @@ queryToMap res =
 queryGameObjects :: IO GameObjects
 queryGameObjects = do
     q' <- q "SELECT `entry`,`name`,`position_x`,`position_y`,`position_z`,`map` FROM `gameobject`,`gameobject_template` WHERE `id` = `entry` ORDER BY `entry`"
-    return $ Ma.fromList $ groupd $ (getGO <$> q') where
-        groupd :: [(GameObject, Point)] -> [(GameObject, [Point])]
-        groupd xs = groupGO <$> L.groupBy (\a b -> fst a == fst b) xs
-        groupGO :: [(GameObject, Point)] -> (GameObject, [Point])
-        groupGO [] = error "empty GameObject Point pair"
-        groupGO xs = (fst $ L.head xs, snd <$> xs)
+    return (getGO <$> q') where
         getGO q =
             let i = fs (q!!0)
                 n = (\(MySQLText t) -> encodeUtf8 t) (q!!1)
                 [x,y,z] = ffs <$> [q!!2, q!!3, q!!4]
                 m = fs (q!!5)
-            in (GameObject i n, Point x y z m)
+            in GameObject i n (Point x y z m)
                 
 
 instance Serialize Text where

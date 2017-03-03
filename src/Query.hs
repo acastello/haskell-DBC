@@ -1,4 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses, ExistentialQuantification, TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Query where
 
@@ -15,17 +16,13 @@ import Raw_items
 
 type C a b c = (b -> c) -> a -> c
 
-class Filterable (f :: * -> *) v where
-    type Key f :: *
-    filter' :: (Key f -> Bool) -> f v -> f v
+class Filterable (f :: * -> *) where
+    filter' :: (a -> Bool) -> f a -> f a
 
--- class Filterable2 f where
-    -- filter'' :: (a -> b -> Bool) -> f a b -> f a b
-
-instance Filterable [] v where
+instance Filterable [] where
     filter' = L.filter
 
-instance Filterable (M.IntMap a) where
+instance Filterable M.IntMap where
     filter' = M.filter
 
 class Listable f where
@@ -51,6 +48,7 @@ takes = L.take
 like :: B.ByteString -> B.ByteString -> Bool
 like = B.isInfixOf
 
+-- item getters
 by_iid = mkC iid
 by_iname = mkC iname
 by_islot = mkC islot
@@ -63,10 +61,19 @@ by_idesc = mkC idesc
 by_score tab = mkC (\i -> score tab (istats i) 
                (su_stats <$> L.filter (\s -> su_chance s > 2) (isuffs i)))
 
+-- suffix getters
 by_sid = mkC sid
 by_sval = mkC sval
 by_stype = mkC stype
 by_sdesc = mkC sdesc
+
+-- GameObject getters
+by_gid    = mkC gid
+by_gname  = mkC gname
+by_p_m    = mkC (p_m . gpoint)
+
+-- generic comparing functions
+is_instance n = not $ any (== n) [0, 1, 530, 571]
 
 score :: [(Stat,Double)] -> [(Stat,Int)] -> [[(Stat,Int)]] -> Double
 score tab hay [] = L.sum $ do
@@ -78,6 +85,7 @@ score tab hay [] = L.sum $ do
         []
 score tab hay opt = score tab hay [] + maximum ((\l -> score tab l []) <$> opt)
 
+std :: Int -> [(Stat, Double)] -> [Item -> Bool] -> [Item]
 std n scoretab filts = takes n $ sorts (by_score scoretab) $ filters filts raw_items
 
 dmg = [(Damage, 1.0)]

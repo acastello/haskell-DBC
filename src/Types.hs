@@ -292,24 +292,25 @@ instance Show Point where
         (p_z p) (col [1]) (col [])  (col [32]) (p_m p) (col [38]) (col [1])
         (maybe "<unknown>" id $ M.lookup (p_m p) mapMap) (col [])
 
-type GameObjects = Ma.Map GameObject [Point]
+type GameObjects = [GameObject]
 
 data GameObject = GameObject
-    { go_id   :: Int
-    , go_name :: ByteString
+    { gid     :: Int
+    , gname   :: ByteString
+    , gpoint  :: Point
     } deriving Generic
 
 instance Eq GameObject where
-    go == go' = go_id go == go_id go'
+    go == go' = gid go == gid go'
 
 instance Ord GameObject where
-    compare go go' = compare (go_id go) (go_id go')
+    compare go go' = compare (gid go) (gid go')
 
 instance Serialize GameObject
 
 instance Show GameObject where
-    show go = printf "%s#%s%d%s %s"
-        (col [1,36]) (col [0,36]) (go_id go) (col []) (unpack $ go_name go)
+    show go = printf "%s#%s%d%s %s %s" (col [1,36]) (col [0,36]) 
+              (gid go) (col []) (unpack $ gname go) (show $ gpoint go)
 
 getSpellStats :: Spell -> Maybe (Stat,Int)
 getSpellStats sp = (\i -> (i, fromIntegral $ sval sp)) <$> case (stype sp) of
