@@ -3,10 +3,11 @@
 
 module Query where
 
-import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as B
 import qualified Data.IntMap as M
 import qualified Data.Map as Ma
 import qualified Data.List as L
+import Data.Word
 
 import System.Process (callCommand)
 
@@ -45,6 +46,9 @@ sorts f = L.reverse . L.sortOn (f id) . toList'
 
 takes = L.take
 
+groups :: (Listable f, Eq b) => C a b b -> f a -> [[a]]
+groups f = L.groupBy (\a b -> f id a == f id b) . toList'
+
 like :: B.ByteString -> B.ByteString -> Bool
 like = B.isInfixOf
 
@@ -74,6 +78,24 @@ by_p_m    = mkC (p_m . gpoint)
 
 -- generic comparing functions
 is_instance n = not $ any (== n) [0, 1, 530, 571]
+
+is_herb id = any (== id)
+  [ 1617,   1618,   1629,   1620,   1621,   1622,   1623,   1624,   1625,   1628 
+  , 2041,   2042,   2043,   2044,   2045,   2046,   2866,   3724,   3726
+  , 3727,   3729,   3730,   3725,   142140, 142141, 142142, 142143, 142144 
+  , 142145, 176583, 176584, 176586, 176587, 176588, 176589, 176636, 176637
+  , 176638, 176639, 176640, 176641, 176642, 180164, 180165, 180166, 180167 
+  , 180168, 181166, 181270, 181271, 181275, 181276, 181277, 181278, 181279
+  , 181280, 181281, 183043, 183044, 183045, 183046, 185881, 189973, 190169
+  , 190170, 190171, 190172, 190173, 190174, 190175, 190176, 191019, 191303 ]
+
+is_vein id = any (== id) 
+  [ 181556, 185557, 189978, 1731, 3763, 2055, 181248, 103713, 165658, 181555
+  , 1734, 150080, 181109, 180215, 1610, 1667, 19903, 1735, 181557, 181069
+  , 2653, 2040, 150079, 176645, 185877, 73941, 123310, 177388, 73940, 123848
+  , 123309, 181569, 181570, 189979, 189981, 175404, 189980, 1733, 105569
+  , 181068, 324, 150082, 176643, 1732, 3764, 2054, 181249, 103711, 191133
+  , 2047, 181108, 150081]
 
 score :: [(Stat,Double)] -> [(Stat,Int)] -> [[(Stat,Int)]] -> Double
 score tab hay [] = L.sum $ do
@@ -129,3 +151,13 @@ spScore = [ (SpellPower, 1), (Hit, 0.5), (Intellect, 0.5), (Crit, 0.5)
 mp5Score = [ (Spirit, 2), (ManaPer5, 1), (Intellect, 0.1) ]
 
 goitem id = callCommand $ "xdg-open http://truewow.org/armory/item.php?item=" ++ show id
+
+-- util
+
+p2tuple :: Point -> (Float, Float, Float, Word32)
+p2tuple p = (p_x p, p_y p, p_z p, fromIntegral $ p_m p)
+
+saveGO :: GameObjects -> IO ()
+saveGO [] = error "no gameobjects"
+saveGO xs = save ("tup4_" ++ B.unpack (gname $ head xs) ++ ".gz") 
+                  ((p2tuple . gpoint) <$> xs)
