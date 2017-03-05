@@ -19,7 +19,7 @@ import Data.Scientific
 import Data.Serialize
 import Data.Text
 import Data.Text.Encoding
--- import Data.Time
+import Data.Time
 import Data.Time.Calendar
 import qualified Data.Vector as V
 import Data.Word
@@ -76,19 +76,19 @@ instance Serialize Day where
     put = undefined
     get = undefined
 
--- instance Serialize TimeOfDay where
-    -- put = undefined
-    -- get = undefined
+instance Serialize TimeOfDay where
+    put = undefined
+    get = undefined
 
--- instance Serialize LocalTime where
-    -- put = undefined
-    -- get = undefined
+instance Serialize LocalTime where
+    put = undefined
+    get = undefined
 
 instance Serialize Scientific where
     put = undefined
     get = undefined
 
--- instance Serialize MySQLValue
+instance Serialize MySQLValue
 
 save :: Serialize a => FilePath -> a -> IO ()
 save file res = BL.writeFile file $ compress $ encodeLazy res
@@ -110,11 +110,11 @@ saveComp file imps var e = let varname = (L.head $ L.words var) in Prelude.write
 saveCompItems :: M.IntMap Item -> IO ()
 saveCompItems = saveComp "Raw_items" ["import Data.IntMap", "import Types"] "raw_items :: IntMap Item"
 
--- saveResult :: FilePath -> [[MySQLValue]] -> IO ()
--- saveResult file res = BL.writeFile file $ compress $ encodeLazy res
+saveResult :: FilePath -> [[MySQLValue]] -> IO ()
+saveResult file res = BL.writeFile file $ compress $ encodeLazy res
 
--- loadResult :: FilePath -> IO [[MySQLValue]]
--- loadResult file = either error id . decodeLazy . decompress <$> BL.readFile file
+loadResult :: FilePath -> IO [[MySQLValue]]
+loadResult file = either error id . decodeLazy . decompress <$> BL.readFile file
 
 loadQuests :: IO (M.IntMap Quest)
 loadQuests = load "quests.gz"
