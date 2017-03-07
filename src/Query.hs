@@ -9,6 +9,7 @@ import qualified Data.Map as Ma
 import qualified Data.List as L
 import Data.Word
 
+import System.IO.Unsafe
 import System.Process (callCommand)
 
 import Source
@@ -85,7 +86,7 @@ is_herb id = any (== id)
   , 3727,   3729,   3730,   3725,   142140, 142141, 142142, 142143, 142144 
   , 142145, 176583, 176584, 176586, 176587, 176588, 176589, 176636, 176637
   , 176638, 176639, 176640, 176641, 176642, 180164, 180165, 180166, 180167 
-  , 180168, 181166, 181270, 181271, 181275, 181276, 181277, 181278, 181279
+  , 180168, 181166, 181270, 181271, 181275, 181277, 181278, 181279
   , 181280, 181281, 183043, 183044, 183045, 183046, 185881, 189973, 190169
   , 190170, 190171, 190172, 190173, 190174, 190175, 190176, 191019, 191303 ]
 
@@ -107,8 +108,13 @@ score tab hay [] = L.sum $ do
         []
 score tab hay opt = score tab hay [] + maximum ((\l -> score tab l []) <$> opt)
 
+gos :: GameObjects
+gos = unsafePerformIO loadGameObjects
+
 std :: Int -> [(Stat, Double)] -> [Item -> Bool] -> [Item]
 std n scoretab filts = takes n $ sorts (by_score scoretab) $ filters filts raw_items
+
+std' xs = loadGameObjects >>= \gos -> foldMap print $ filters xs gos
 
 dmg = [(Damage, 1.0)]
 
