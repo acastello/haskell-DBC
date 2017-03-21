@@ -53,6 +53,15 @@ groups f = L.groupBy (\a b -> f id a == f id b) . toList'
 like :: B.ByteString -> B.ByteString -> Bool
 like = B.isInfixOf
 
+dist :: Point -> Point -> Float
+dist p0 p1 = 
+    if p_m p0 /= p_m p1 then
+        1/0
+    else
+        sqrt $ sum $ fmap (**2) $ 
+          zipWith subtract [p_x p0, p_y p0, p_z p0] [p_x p1, p_y p1, p_z p1]
+
+
 -- item getters
 by_iid = mkC iid
 by_iname = mkC iname
@@ -76,6 +85,7 @@ by_sdesc = mkC sdesc
 by_gid    = mkC gid
 by_gname  = mkC gname
 by_p_m    = mkC (p_m . gpoint)
+by_dist p = mkC (dist p . gpoint)
 
 -- generic comparing functions
 is_instance n = not $ any (== n) [0, 1, 530, 571]
