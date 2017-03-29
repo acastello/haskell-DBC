@@ -1,4 +1,4 @@
-module Geomtry where
+module Geometry where
 
 import Data.List
 import Data.Maybe
@@ -16,7 +16,7 @@ contained p (head:pol) = length left `mod` 2 /= 0 || length right `mod` 2 /= 0
     crosses = fmap (uncurry hei) edges
     edges = catMaybes $ snd $ mapAccumR f head pol
     f p' p'' =
-        if signum (p_y p - p_y p') /= signum (p_y p - p_y p') then
+        if signum (p_y p - p_y p') /= signum (p_y p - p_y p'') then
             (p'', Just (p',p''))
         else
             (p'', Nothing)
@@ -24,5 +24,3 @@ contained p (head:pol) = length left `mod` 2 /= 0 || length right `mod` 2 /= 0
     hei p' p'' = m * (p_y p) + n where
         m = (p_x p'' - p_x p') / (p_y p'' - p_y p')
         n = p_y p' - m * p_x p'
-
-
