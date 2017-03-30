@@ -14,6 +14,7 @@ import System.Process (callCommand)
 
 import Source
 import Types
+import Geometry
 import Raw_items
 
 type C a b c = (b -> c) -> a -> c
@@ -84,6 +85,7 @@ by_sdesc = mkC sdesc
 -- GameObject getters
 by_gid    = mkC gid
 by_gname  = mkC gname
+by_g_p    = mkC gpoint
 by_p_m    = mkC (p_m . gpoint)
 by_dist p = mkC (dist p . gpoint)
 
