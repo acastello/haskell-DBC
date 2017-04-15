@@ -1,15 +1,19 @@
-{-# LANGUAGE DeriveGeneric, DefaultSignatures #-}
+{-# LANGUAGE DeriveGeneric, DefaultSignatures, GeneralizedNewtypeDeriving #-}
 
 module DBC where
 
 import Control.Monad
+import Control.Monad.Reader
+import Control.Monad.State
 
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as BL
 import Data.ByteString.Lazy
+import Data.Functor.Identity
 import Data.Int
 import qualified Data.IntMap as M
-import Data.Serialize
+-- import Data.Serialize
+import qualified Data.List as L
 import qualified Data.Vector as V
 import Data.Word 
 
@@ -19,45 +23,95 @@ import System.IO (openFile, IOMode (ReadMode), hClose)
 
 import qualified Text.Printf as T
 
-class Gettable a where
-    get' :: ByteString -> Get a
+data DBCStatus = DBCStatus
+    { dbc_offset    :: Int
+    , dbc_position  :: Int64
+    } 
 
-    default get' :: Serialize a => ByteString -> Get a
-    get' = \_ -> get
+data DBCData = DBCData
+    { dbc_text  :: ByteString
+    , dbc_data  :: ByteString
+    }
 
-instance Gettable ByteString where
-    get' strs = do
-        i <- getWord32le
-        return $ peekBS (BL.drop (fi i) strs)
+newtype DBCGet a = DBCGet (ReaderT DBCData (State DBCStatus) a)  
+    deriving (Functor, Applicative, Monad, MonadReader DBCData, MonadState DBCStatus)
 
-instance Gettable B.ByteString where
-    get' strs = do
-        i <- getWord32le
-        return $ toStrict $ peekBS (BL.drop (fi i) strs)
+runGet :: DBCGet a -> DBCData -> DBCStatus -> a
+runGet (DBCGet e) da st = evalState (runReaderT e da) st
 
-instance Gettable Word8 where
-    get' = \_ -> getWord8
+runDBC :: DBCItem a => DBC ByteString -> DBC a
+runDBC dbc = fmap runRow dbc 
+    where
+        runRow dat = runGet cast (DBCData (strs dbc) dat) (DBCStatus 0 0) 
 
-instance Gettable Word16 where
-    get' = \_ -> getWord16le
 
-instance Gettable Word32 where
-    get' = \_ -> getWord32le
+takeBytes :: Int -> DBCGet [Word8]
+takeBytes n = do
+    st <- get
+    da <- ask
+    let newoff = dbc_offset st + (n - 4)
+        bytes = BL.take (fi n) $ BL.drop (dbc_position st) (dbc_data da)
+    put st
+      { dbc_offset = newoff }
+    return $ unpack bytes
 
-instance Gettable Word64 where
-    get' = \_ -> getWord64le
+class DBCItem a where
+    cast :: DBCGet a
 
-instance Gettable Int8 where
-    get' = \_ -> getInt8
+castCellAt :: DBCItem a => Int -> DBCGet a
+castCellAt n = do
+    modify $ \s -> s { dbc_position = fromIntegral n * 4 }
+    ret <- cast
+    modify $ \s -> s { dbc_position = 0 }
+    return ret
 
-instance Gettable Int16 where
-    get' = \_ -> getInt16le
 
-instance Gettable Int32 where
-    get' = \_ -> getInt32le
+instance DBCItem Word32 where
+    cast = do
+        DBCStatus { dbc_offset = offset } <- get
+        return undefined
 
-instance Gettable Int64 where
-    get' = \_ -> getInt64le
+
+
+-- class Gettable a where
+    -- get' :: ByteString -> Get a
+
+    -- default get' :: Serialize a => ByteString -> Get a
+    -- get' = \_ -> get
+
+-- instance Gettable ByteString where
+    -- get' strs = do
+        -- i <- getWord32le
+        -- return $ peekBS (BL.drop (fi i) strs)
+
+-- instance Gettable B.ByteString where
+    -- get' strs = do
+        -- i <- getWord32le
+        -- return $ toStrict $ peekBS (BL.drop (fi i) strs)
+
+-- instance Gettable Word8 where
+    -- get' = \_ -> getWord8
+
+-- instance Gettable Word16 where
+    -- get' = \_ -> getWord16le
+
+-- instance Gettable Word32 where
+    -- get' = \_ -> getWord32le
+
+-- instance Gettable Word64 where
+    -- get' = \_ -> getWord64le
+
+-- instance Gettable Int8 where
+    -- get' = \_ -> getInt8
+
+-- instance Gettable Int16 where
+    -- get' = \_ -> getInt16le
+
+-- instance Gettable Int32 where
+    -- get' = \_ -> getInt32le
+
+-- instance Gettable Int64 where
+    -- get' = \_ -> getInt64le
 
 data DBC a = DBC
     { nrows :: Word32
@@ -69,7 +123,7 @@ data DBC a = DBC
     } deriving Show
 
 instance Functor DBC where
-    fmap f = applyf (fmap f)
+    fmap = applyf . fmap 
 
 instance Foldable DBC where
     foldMap f = foldMap f . rows
@@ -77,27 +131,27 @@ instance Foldable DBC where
 instance Traversable DBC where
     traverse f dbc = (\e -> dbc { rows = e }) <$> traverse f (rows dbc)
 
-readDBC :: FilePath -> IO (DBC ByteString)
-readDBC fp = do
-    h <- openFile fp ReadMode
-    headers <- hGet h 20 
-    let (r,c,e,s) = either error id $ flip runGetLazy headers $ do
-        get :: Get Word32
-        r <- getWord32le
-        c <- getWord32le
-        e <- getWord32le
-        s <- getWord32le
-        return (r,c,e,s)
-    v <- fmap M.fromList $ replicateM (fi r) $ do
-        str <- hGet h (fi e)
-        let i = either error id $ runGetLazy getWord32le str
-        return (fi i,str)
-    strs <- hGet h (fi s)
-    hClose h
-    return $ DBC r c e s v strs
+-- readDBC :: FilePath -> IO (DBC ByteString)
+-- readDBC fp = do
+--     h <- openFile fp ReadMode
+--     headers <- hGet h 20 
+--     let (r,c,e,s) = either error id $ flip runGetLazy headers $ do
+--         get :: Get Word32
+--         r <- getWord32le
+--         c <- getWord32le
+--         e <- getWord32le
+--         s <- getWord32le
+--         return (r,c,e,s)
+--     v <- fmap M.fromList $ replicateM (fi r) $ do
+--         str <- hGet h (fi e)
+--         let i = either error id $ runGetLazy getWord32le str
+--         return (fi i,str)
+--     strs <- hGet h (fi s)
+--     hClose h
+--     return $ DBC r c e s v strs
 
-decodeDBC :: Gettable a => DBC ByteString -> Either String (M.IntMap a)
-decodeDBC dbc = traverse (runGetLazy $ get' (strs dbc)) (rows dbc)
+-- decodeDBC :: Gettable a => DBC ByteString -> Either String (M.IntMap a)
+-- decodeDBC dbc = traverse (runGetLazy $ get' (strs dbc)) (rows dbc)
 
 --
 -- utils

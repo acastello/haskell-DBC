@@ -174,9 +174,10 @@ mp5Score = [ (Spirit, 2), (ManaPer5, 1), (Intellect, 0.1) ]
 goitem id = callCommand $ "xdg-open http://truewow.org/armory/item.php?item=" ++ show id
 
 -- util
-
-instance Vertex Point where
-    vertex Point { p_x = x, p_y = y, p_z = z } = vertex $ Vertex3 (-y) x 0
+instance Bidimensional Point where
+    vert Point { p_x = x, p_y = y } = vertex $ Vertex2 (-y) x
+    bounds Point { p_x = x, p_y = y } 
+                         = bounds (realToFrac (-y) :: Double, realToFrac x :: Double)
 
 p2tuple :: Point -> (Float, Float, Float, Word32)
 p2tuple p = (p_x p, p_y p, p_z p, fromIntegral $ p_m p)

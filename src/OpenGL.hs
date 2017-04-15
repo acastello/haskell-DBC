@@ -1,9 +1,10 @@
--- {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, ScopedTypeVariables #-}
 
 module OpenGL 
-  ( Vertex (..)
+  ( vertex
   , Vertex2 (..), Vertex3 (..)
-  , PrimitiveMode (..)
+  , Bidimensional (..)
+  , Draw (..)
   , draw
   ) where
 
@@ -22,6 +23,40 @@ instance Vertex a => Vertex [a] where
     vertex = mapM_ vertex
     vertexv = undefined
 
+class Bidimensional a where
+    vert :: a -> IO ()
+    bounds :: a -> (Double, Double, Double, Double)
+
+center2 :: Bidimensional a => a -> (Double, Double)
+center2 e = ((x+x')/2, (y+y')/2) where
+    (x,y,x',y') = bounds e
+
+instance Bidimensional (Double, Double) where
+    vert (x,y) = vertex $ Vertex2 x y
+    bounds (x,y) = (x-0.5, y-0.5, x+0.5, y+0.5)
+
+instance Bidimensional a => Bidimensional [a] where
+    vert = mapM_ vert
+    bounds xs = (x, y, x', y') where
+        x = minimum $ _1 <$> bs
+        y = minimum $ _2 <$> bs
+        x' = maximum $ _3 <$> bs
+        y' = maximum $ _4 <$> bs
+        _1 (e,_,_,_) = e
+        _2 (_,e,_,_) = e
+        _3 (_,_,e,_) = e
+        _4 (_,_,_,e) = e
+        bs = bounds <$> xs
+
+data Draw a = 
+    P { drawEl :: a }
+  | L { drawEl :: a }
+
+renderDraw e = renderPrimitive pm (vert $ drawEl e) where
+    pm = case e of
+        P _ -> Points
+        L _ -> LineStrip
+
 data Refs = Refs
   { zoom    :: IORef Double
   , center  :: IORef (Double, Double)
@@ -38,8 +73,10 @@ newRefs = do
     rs <- newIORef (100, 100)
     return $ Refs z c p lp rs
 
+draw :: forall a. Bidimensional a => [Draw a] -> IO ()
 draw xs = do
     refs <- newRefs
+    center refs $= avg (center2 . drawEl <$> xs)
     getArgsAndInitialize
     initialDisplayMode $= [ RGBAMode, DoubleBuffered ]
     createWindow "OpenGL Canvas"
@@ -64,9 +101,7 @@ draw xs = do
             scale z z (1.0 :: Double)
             translate $ Vector3 x y 0
 
-            forM_ xs $ \(t, v) -> do
-                renderPrimitive t $
-                    vertex v
+            forM_ xs renderDraw
             swapBuffers
 
         keyboardMouseCB refs c ks m p @ (Position x y) = do
@@ -111,6 +146,9 @@ draw xs = do
                 pos refs $= (x' + offx, y' + offy)
                 -- viewport $= (Position (x' + x - x'') (y' + y'' - y), s)
             postRedisplay Nothing
+
+avg xs = (\(x,y) -> (x/l, y/l)) $ foldr (\(x,y) (x',y') -> (x+x',y+y')) (0,0) xs 
+             where l = fromIntegral $ length xs
 
 test :: IO ()
 test = do
