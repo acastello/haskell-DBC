@@ -12,10 +12,12 @@ import Data.ByteString.Lazy
 import Data.Functor.Identity
 import Data.Int
 import qualified Data.IntMap as M
--- import Data.Serialize
+import qualified Data.Serialize as S
 import qualified Data.List as L
 import qualified Data.Vector as V
 import Data.Word 
+
+import Foreign
 
 import GHC.Generics
 
@@ -66,11 +68,21 @@ castCellAt n = do
     return ret
 
 
+getW32 :: ByteString -> Word32
+getW32 str = L.foldl1 or bytes where
+    or = (\a b -> a .|. b `shiftL` 8)
+    bytes = fi <$> unpack (BL.take 4 str)
+
 instance DBCItem Word32 where
     cast = do
-        DBCStatus { dbc_offset = offset } <- get
-        return undefined
+        xs <- fmap fi <$> takeBytes 4
+        return $ L.foldr1 (\a b -> a `shiftL` 8 .|. b) xs
 
+instance DBCItem ByteString where
+    cast = do
+        DBCData { dbc_text = text } <- ask
+        x <- cast :: DBCGet Word32
+        return $ BL.drop (fi x) text
 
 
 -- class Gettable a where
@@ -131,24 +143,24 @@ instance Foldable DBC where
 instance Traversable DBC where
     traverse f dbc = (\e -> dbc { rows = e }) <$> traverse f (rows dbc)
 
--- readDBC :: FilePath -> IO (DBC ByteString)
--- readDBC fp = do
---     h <- openFile fp ReadMode
---     headers <- hGet h 20 
---     let (r,c,e,s) = either error id $ flip runGetLazy headers $ do
---         get :: Get Word32
---         r <- getWord32le
---         c <- getWord32le
---         e <- getWord32le
---         s <- getWord32le
---         return (r,c,e,s)
---     v <- fmap M.fromList $ replicateM (fi r) $ do
---         str <- hGet h (fi e)
---         let i = either error id $ runGetLazy getWord32le str
---         return (fi i,str)
---     strs <- hGet h (fi s)
---     hClose h
---     return $ DBC r c e s v strs
+readDBC :: FilePath -> IO (DBC ByteString)
+readDBC fp = do
+    h <- openFile fp ReadMode
+    headers <- hGet h 20 
+    let (r,c,e,s) = either error id $ flip S.runGetLazy headers $ do
+        S.getWord32le
+        r <- S.getWord32le
+        c <- S.getWord32le
+        e <- S.getWord32le
+        s <- S.getWord32le
+        return (r,c,e,s)
+    v <- fmap M.fromList $ replicateM (fi r) $ do
+        str <- hGet h (fi e)
+        let i = either error id $ S.runGetLazy S.getWord32le str
+        return (fi i,str)
+    strs <- hGet h (fi s)
+    hClose h
+    return $ DBC r c e s v strs
 
 -- decodeDBC :: Gettable a => DBC ByteString -> Either String (M.IntMap a)
 -- decodeDBC dbc = traverse (runGetLazy $ get' (strs dbc)) (rows dbc)
