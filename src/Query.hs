@@ -40,8 +40,8 @@ instance Listable [] where
 instance Listable M.IntMap where
     toList' = M.elems
 
-mkC :: (a -> b) -> C a b c
-mkC = flip (.)
+by_ :: (a -> b) -> C a b c
+by_ = flip (.)
 
 filters :: Filterable f => [a -> Bool] -> f a -> f a
 filters con = filter' (\e -> L.all ($ e) con)
@@ -67,30 +67,30 @@ dist p0 p1 =
 
 
 -- item getters
-by_iid = mkC iid
-by_iname = mkC iname
-by_islot = mkC islot
-by_iatype = mkC iatype
-by_istats = mkC istats
-by_ilevel = mkC ilevel
-by_iqual = mkC iqual
-by_irlevel = mkC irlevel
-by_idesc = mkC idesc
-by_score tab = mkC (\i -> score tab (istats i) 
-               (su_stats <$> L.filter (\s -> su_chance s > 2) (isuffs i)))
+by_it_id = by_ it_id
+by_it_name = by_ it_name
+by_it_slot = by_ it_slot
+by_it_atype = by_ it_atype
+by_it_stats = by_ it_stats
+by_it_level = by_ it_level
+by_it_qual = by_ it_qual
+by_it_rlevel = by_ it_rlevel
+by_it_desc = by_ it_desc
+by_it_score tab = by_ (\i -> score tab (it_stats i) 
+               (su_stats <$> L.filter (\s -> su_chance s > 2) (it_suffs i)))
 
 -- suffix getters
-by_sid = mkC sid
-by_sval = mkC sval
-by_stype = mkC stype
-by_sdesc = mkC sdesc
+-- by_se_id = by_ se_id
+-- by_se_val = by_ se_val
+-- by_se_type = by_ se_type
+-- by_se_desc = by_ se_desc
 
 -- GameObject getters
-by_gid    = mkC gid
-by_gname  = mkC gname
-by_g_p    = mkC gpoint
-by_p_m    = mkC (p_m . gpoint)
-by_dist p = mkC (dist p . gpoint)
+by_go_id    = by_ go_id
+by_go_name  = by_ go_name
+by_go_p    = by_ go_point
+by_go_m    = by_ (p_m . go_point)
+by_go_dist p = by_ (dist p . go_point)
 
 -- generic comparing functions
 is_instance n = not $ any (== n) [0, 1, 530, 571]
@@ -127,15 +127,15 @@ gos :: GameObjects
 gos = unsafePerformIO loadGameObjects
 
 std :: Int -> [(Stat, Double)] -> [Item -> Bool] -> [Item]
-std n scoretab filts = takes n $ sorts (by_score scoretab) $ filters filts raw_items
+std n scoretab filts = takes n $ sorts (by_it_score scoretab) $ filters filts raw_items
 
 std' xs = loadGameObjects >>= \gos -> foldMap print $ filters xs gos
 
 dmg = [(Damage, 1.0)]
 
 by_speed :: C Item Double Double
-by_speed = mkC $ \i -> L.sum $ do
-    (s,n) <- istats i
+by_speed = by_ $ \i -> L.sum $ do
+    (s,n) <- it_stats i
     if s == Speed && n > 0 then
         return $ 1 / (fromIntegral n)
     else
@@ -184,5 +184,5 @@ p2tuple p = (p_x p, p_y p, p_z p, fromIntegral $ p_m p)
 
 saveGO :: GameObjects -> IO ()
 saveGO [] = error "no gameobjects"
-saveGO xs = save ("tup4_" ++ B.unpack (gname $ head xs) ++ ".gz") 
-                  ((p2tuple . gpoint) <$> xs)
+saveGO xs = save ("tup4_" ++ B.unpack (go_name $ head xs) ++ ".gz") 
+                  ((p2tuple . go_point) <$> xs)

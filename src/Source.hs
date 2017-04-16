@@ -31,7 +31,11 @@ import qualified System.IO.Streams as S
 import Types
 import DBC
 
+data DBCSources = DBCSources
+    { 
+    }
 
+q :: Query -> IO [[MySQLValue]]
 q tab = do
     conn <- connect defaultConnectInfo { ciUser = "guest"
         , ciHost = "192.168.1.124", ciDatabase = "world" }
@@ -91,10 +95,11 @@ instance Serialize Scientific where
 instance Serialize MySQLValue
 
 save :: Serialize a => FilePath -> a -> IO ()
-save file res = BL.writeFile file $ compress $ encodeLazy res
+save file res = B.writeFile file $ BL.toStrict $ compress $ encodeLazy res
 
 load :: Serialize a => FilePath -> IO a
-load file = either error id . decodeLazy . decompress <$> BL.readFile file
+load file = either error id . decode . BL.toStrict . decompress 
+                <$> BL.readFile file
 
 saveComp :: Serialize a => FilePath -> [String] -> String -> a -> IO ()
 saveComp file imps var e = let varname = (L.head $ L.words var) in Prelude.writeFile (file ++ ".hs") $
