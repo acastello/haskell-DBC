@@ -95,7 +95,7 @@ data Quality = Poor | Common | Uncommon | Rare | Epic | Legendary
     deriving (Eq, Ord, Show, Read, Generic)
 
 qualc :: Item -> String
-qualc i = col $ case iqual i of
+qualc i = col $ case it_qual i of
     Poor      -> []
     Common    -> [0,1]
     Uncommon  -> [1,32]
@@ -136,20 +136,21 @@ instance Show Faction where
 instance Serialize Faction
 instance NFData Faction
 
+type ItemId = Int
 type Level = Int
 type ItemLevel = Level
 
 data Item = Item 
-    { iid     :: Int
-    , iname   :: ByteString 
-    , islot   :: Slot
-    , iatype  :: ArmorType
-    , istats  :: [(Stat,Int)] 
-    , isuffs  :: [Suffix]
-    , ilevel  :: ItemLevel 
-    , iqual   :: Quality
-    , irlevel :: Level
-    , idesc   :: ByteString
+    { it_id     :: ItemId
+    , it_name   :: ByteString 
+    , it_slot   :: Slot
+    , it_atype  :: ArmorType
+    , it_stats  :: [(Stat,Int)] 
+    , it_suffs  :: [Suffix]
+    , it_level  :: ItemLevel 
+    , it_qual   :: Quality
+    , it_rlevel :: Level
+    , it_desc   :: ByteString
     } deriving Generic
 
 instance Serialize Item
@@ -157,46 +158,70 @@ instance NFData Item
 
 instance Show Item where
     show i = printf "%s#%s%-5d %s (%s) %s%s%s%s%s\n" 
-        (col [1,36]) (col [0,36]) (iid i) (qualc i ++ (unpack $ iname i) ++ col [])
-        (appendAT (show $ islot i) (iatype i)) 
-        (showStats $ istats i) (col [32]) (tab $ idesc i) (col [])
-        (foldMap ("\n        " ++) (show <$> isuffs i))
+        (col [1,36]) (col [0,36]) (it_id i) (qualc i ++ (unpack $ it_name i) ++ col [])
+        (appendAT (show $ it_slot i) (it_atype i)) 
+        (showStats $ it_stats i) (col [32]) (tab $ it_desc i) (col [])
+        (foldMap ("\n        " ++) (show <$> it_suffs i))
         
-type SpellId = Word32
+type SpellId = Int
 
 data Spell = Spell
-    { sid     :: SpellId
-    , sval    :: Int32
-    , stype   :: (Word32, Word32)
-    , sdesc   :: ByteString
+    { sp_id     :: SpellId
+    , sp_val    :: Int32
+    , sp_scho   :: Word32
+    , sp_scho2  :: Word32
+    , sp_reag   :: [(Word32, ItemId)]
+    , sp_prod   :: [(Word32, Double)]
+    , sp_desc   :: ByteString
     } deriving (Show, Generic)
 
 instance Serialize Spell where
 
-instance Gettable Spell where
-    get' strs = do
-        id <- get' strs
-        skip (4*79)
-        n <- get' strs
-        skip (4*14)
-        t1 <- get' strs
-        skip (4*14) 
-        t2 <- get' strs
-        skip (4*59)
-        desc <- get' strs
-        return $ Spell id (n+1) (t1,t2) (replaceSubstring "$s1" (pack $ show (n+1)) desc)
+instance DBCItem Spell where
+    cast = do
+        id <- (fi :: Word32 -> Int) <$> castAt 0
+        n <- (+1) <$> castAt 80
+        t1 <- castAt 95
+        t2 <- castAt 110
+        desc <- castAt 170
+        reag <- do
+            ids <- mapM castAt [52..59]
+            quants <- mapM (fmap (fi :: Word32 -> Int) . castAt) [60..67] 
+            return $ L.filter (\(a,b) -> a /= 0 && b /= 0) $ L.zip ids quants
+        prod <- do
+            ids <- L.filter (/= 0) <$> mapM castAt [107..109]
+            quants <- mapM (fmap (fi :: Word32 -> Double) . castAt) [80..82]
+            dice <- mapM 
+              (fmap (\x -> (1 + fi x)/2) . (castAt :: Int -> DBCGet Word32)) 
+              [74..76]
+            return $ L.zip ids (L.zipWith (+) quants dice)
+        return $ Spell id n t1 t2 reag prod
+            (replaceSubstring "$s1" (pack $ show n) desc)
+
+-- instance Gettable Spell where
+--     get' strs = do
+--         id <- get' strs
+--         skip (4*79)
+--         n <- get' strs
+--         skip (4*14)
+--         t1 <- get' strs
+--         skip (4*14) 
+--         t2 <- get' strs
+--         skip (4*59)
+--         desc <- get' strs
+--         return $ Spell id (n+1) (t1,t2) (replaceSubstring "$s1" (pack $ show (n+1)) desc)
 
 data Quest = Quest 
-    { qid     :: Int
-    , qname   :: ByteString
-    , qlevel  :: Level
-    , qfac    :: Maybe Faction
-    , qitems  :: [Int]
+    { qt_id     :: Int
+    , qt_name   :: ByteString
+    , qt_level  :: Level
+    , qt_fac    :: Maybe Faction
+    , qt_items  :: [Int]
     } deriving (Show, Generic)
 
 instance Serialize Quest where
 
-type SuffixId = Word32
+type SuffixId = Int
 data SuffixEntry = SuffixEntry
     { se_id     :: SuffixId
     , se_suffix :: ByteString
@@ -205,47 +230,59 @@ data SuffixEntry = SuffixEntry
 
 instance Serialize SuffixEntry where
 
-instance Gettable SuffixEntry where
-    get' strs = do
-        id <- get' strs
-        suffix <- get' strs
-        skip (4*17)
-        es <- replicateM 5 (get' strs)
+instance DBCItem SuffixEntry where
+    cast = do
+        id <- fi <$> castWord32
+        suffix <- castAt 1
+        es <- mapM (fmap fi . castW32At) [19..23]
         return $ SuffixEntry id suffix (L.filter (/=0) es)
 
-type PropertyId = Word32
+-- instance Gettable SuffixEntry where
+--     get' strs = do
+--         id <- get' strs
+--         suffix <- get' strs
+--         skip (4*17)
+--         es <- replicateM 5 (get' strs)
+--         return $ SuffixEntry id suffix (L.filter (/=0) es)
+
+type PropertyId = Int
 data PropertyEntry = PropertyEntry 
     { pe_id     :: PropertyId
     , pe_suffix :: ByteString
     , pe_enchs  :: [EnchantmentId]
     } deriving (Show, Generic)
 
-instance Serialize PropertyEntry where
+instance Serialize PropertyEntry 
 
-instance Gettable PropertyEntry where
-    get' strs = do
-        id <- get' strs
-        suffix <- get' strs
-        es <- replicateM 3 (get' strs)
-        return $ PropertyEntry id suffix (L.filter (/= 0) es)
+instance DBCItem PropertyEntry where
+    cast = do
+        id <- fi <$> castWord32
+        suffix <- castAt 1
+        es <- mapM (fmap fi . castW32At) [19..21]
+        return $ PropertyEntry id suffix (L.filter (/=0) es)
 
-type EnchantmentId = Word32
+-- instance Gettable PropertyEntry where
+--     get' strs = do
+--         id <- get' strs
+--         suffix <- get' strs
+--         es <- replicateM 3 (get' strs)
+--         return $ PropertyEntry id suffix (L.filter (/= 0) es)
+ 
+type EnchantmentId = Int
 data EnchantmentEntry = EnchantmentEntry
     { ee_id     :: EnchantmentId
     , ee_stats  :: [(Stat,Int)]
     , ee_spells :: [SpellId]
     } deriving (Show, Generic)
 
-instance Serialize EnchantmentEntry where
+instance Serialize EnchantmentEntry 
 
-instance Gettable EnchantmentEntry where
-    get' strs = do
-        id <- get' strs
-        skip 4
-        ts <- replicateM 3 getWord32le
-        ns <- replicateM 3 $ fromIntegral <$> getWord32le
-        skip (3*4)
-        ss <- replicateM 3 getWord32le
+instance DBCItem EnchantmentEntry where
+    cast = do
+        id <- cast
+        ts <- mapM castW32At [2..4]
+        ns <- mapM castAt [5..7]
+        ss <- mapM castW32At [11..13]
         let (stats, spells) = (\(a,b) -> (L.concat a, L.concat b)) $ L.unzip $
                 zipWith3 (\t n s -> case t of
                     5 -> ([(toEnum $ fromIntegral s, n)], [])
@@ -260,6 +297,30 @@ instance Gettable EnchantmentEntry where
                     3 -> ([], [fromIntegral s])
                     _ -> ([], [])) ts ns ss
         return $ EnchantmentEntry id stats spells
+
+
+-- instance Gettable EnchantmentEntry where
+--     get' strs = do
+--         id <- get' strs
+--         skip 4
+--         ts <- replicateM 3 getWord32le
+--         ns <- replicateM 3 $ fromIntegral <$> getWord32le
+--         skip (3*4)
+--         ss <- replicateM 3 getWord32le
+--         let (stats, spells) = (\(a,b) -> (L.concat a, L.concat b)) $ L.unzip $
+--                 zipWith3 (\t n s -> case t of
+--                     5 -> ([(toEnum $ fromIntegral s, n)], [])
+--                     4 -> case s of
+--                         1 -> ([(HolyRes, n)], [])
+--                         2 -> ([(FireRes, n)], [])
+--                         3 -> ([(NatureRes, n)], [])
+--                         4 -> ([(FrostRes, n)], [])
+--                         5 -> ([(ShadowRes, n)], [])
+--                         6 -> ([(ArcaneRes, n)], [])
+--                         _ -> ([], [])
+--                     3 -> ([], [fromIntegral s])
+--                     _ -> ([], [])) ts ns ss
+--         return $ EnchantmentEntry id stats spells
 
 type SuffixMap = M.IntMap [Suffix]
 
@@ -301,25 +362,26 @@ t2p (x,y,z,m) = Point x y z (fromIntegral m)
 type GameObjects = [GameObject]
 
 data GameObject = GameObject
-    { gid     :: Int
-    , gname   :: ByteString
-    , gpoint  :: Point
+    { go_id     :: Int
+    , go_name   :: ByteString
+    , go_point  :: Point
     } deriving Generic
 
 instance Eq GameObject where
-    go == go' = gid go == gid go'
+    go == go' = go_id go == go_id go'
 
 instance Ord GameObject where
-    compare go go' = compare (gid go) (gid go')
+    compare go go' = compare (go_id go) (go_id go')
 
 instance Serialize GameObject
 
 instance Show GameObject where
     show go = printf "%s#%s%d%s %s %s" (col [1,36]) (col [0,36]) 
-              (gid go) (col []) (unpack $ gname go) (show $ gpoint go)
+              (go_id go) (col []) (unpack $ go_name go) (show $ go_point go)
 
 getSpellStats :: Spell -> Maybe (Stat,Int)
-getSpellStats sp = (\i -> (i, fromIntegral $ sval sp)) <$> case (stype sp) of
+getSpellStats sp = (\i -> (i, fromIntegral $ sp_val sp)) <$> 
+  case (sp_scho sp, sp_scho2 sp) of
     (135,126) -> Just SpellPower
     (13, n)   
       | L.any (==n) [2,4,8,16,32,64,126] -> Just SpellPower

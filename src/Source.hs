@@ -279,17 +279,17 @@ getItem m e =
         isuffs = L.concat $ maybeToList $ M.lookup iid (m_sufmap m)
         ilevel = fs (e!!15)
         rlevel = fs (e!!16)
-        iqs = M.filter (\q -> L.any (== iid) (qitems q)) (m_quests m)
+        iqs = M.filter (\q -> L.any (== iid) (qt_items q)) (m_quests m)
         reqlevel = if M.null iqs then 
                       rlevel 
                     else 
-                      max rlevel (qlevel $ snd $ L.head $ M.toList iqs)
+                      max rlevel (qt_level $ snd $ L.head $ M.toList iqs)
         reqlevel' = if iqual > Uncommon && reqlevel == 0 then -1 else reqlevel
         ispells = getItemSpells e
         ispells' = catMaybes $ flip M.lookup (m_spells m) <$> ispells
         istats' = catMaybes $ getSpellStats <$> ispells'
     in Item iid iname islot iatype (istats++istats') isuffs ilevel iqual reqlevel'
-        (foldMap (B.append "\n") (sdesc <$> ispells'))
+        (foldMap (B.append "\n") (sp_desc <$> ispells'))
 
 -- getItems :: IO (M.IntMap Item)
 -- getItems = do
