@@ -47,19 +47,19 @@ instance NFData Slot
 isWeapon :: Slot -> Bool
 isWeapon slot = L.any (== slot) [MainHand, OffHand, Weapon, TwoHand, Ranged]
 
-data ArmorType = NotArmor | Cloth | Leather | Mail | Plate
+data Material = NotArmor | Cloth | Leather | Mail | Plate
     deriving (Eq, Ord, Generic)
-instance Serialize ArmorType
-instance NFData ArmorType
+instance Serialize Material
+instance NFData Material
 
-instance Show ArmorType where
+instance Show Material where
     show NotArmor = ""
     show Cloth = "Cloth"
     show Leather = "Leather"
     show Mail = "Mail"
     show Plate = "Plate"
 
-instance Enum ArmorType where
+instance Enum Material where
     fromEnum = undefined
     toEnum n = case n of
         5 -> Mail
@@ -68,7 +68,7 @@ instance Enum ArmorType where
         8 -> Leather
         _ -> NotArmor
 
-appendAT :: String -> ArmorType -> String
+appendAT :: String -> Material -> String
 appendAT pre at =
     let s = show at
     in if L.null s then
@@ -133,17 +133,33 @@ type ItemId = Int
 type Level = Int
 type ItemLevel = Level
 
+data SQLItem = SQLItem
+    { sqlit_id      :: ItemId
+    , sqlit_name    :: ByteString
+    , sqlit_desc    :: ByteString
+    , sqlit_level   :: ItemLevel
+    , sqlit_qual    :: Quality
+    , sqlit_mat     :: Material
+    , sqlit_slot    :: Slot
+    , sqlit_stats   :: [(Stat, Int)]
+    , sqlit_suffs   :: [SuffixId]
+    , sqlit_props   :: [PropertyId]
+    , sqlit_rlevel  :: Level
+    } deriving Generic
+instance Serialize SQLItem
+instance NFData SQLItem
+
 data Item = Item 
     { it_id     :: ItemId
     , it_name   :: ByteString 
+    , it_desc   :: ByteString
+    , it_qual   :: Quality
+    , it_level  :: ItemLevel 
+    , it_mat    :: Material
     , it_slot   :: Slot
-    , it_atype  :: ArmorType
     , it_stats  :: [(Stat,Int)] 
     , it_suffs  :: [Suffix]
-    , it_level  :: ItemLevel 
-    , it_qual   :: Quality
     , it_rlevel :: Level
-    , it_desc   :: ByteString
     } deriving Generic
 instance Serialize Item
 instance NFData Item
@@ -151,7 +167,7 @@ instance NFData Item
 instance Show Item where
     show i = printf "%s#%s%-5d %s (%s) %s%s%s%s%s\n" 
         (col [1,36]) (col [0,36]) (it_id i) (qualc i ++ (unpack $ it_name i) ++ col [])
-        (appendAT (show $ it_slot i) (it_atype i)) 
+        (appendAT (show $ it_slot i) (it_mat i)) 
         (showStats $ it_stats i) (col [32]) (tab $ it_desc i) (col [])
         (foldMap ("\n        " ++) (show <$> it_suffs i))
         

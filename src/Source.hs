@@ -13,6 +13,7 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Char8 as BLC
 import qualified Data.IntMap as M
+import Data.IntMap (IntMap)
 import qualified Data.List as L
 import qualified Data.Map as Ma
 import Data.Maybe
@@ -33,7 +34,14 @@ import Types
 import DBC
 
 data DBCSources = DBCSources
-    { 
+    { dbcs_spells     :: IntMap Spell
+    , dbcs_suffixes   :: IntMap SuffixEntry
+    , dbcs_properties :: IntMap PropertyEntry
+    , dbcs_enchants   :: IntMap EnchantmentEntry
+    }
+
+data SQLSources = SQLSources
+    { sqls_items      :: IntMap SQLItem
     }
 
 q :: Query -> IO [[MySQLValue]]
@@ -290,7 +298,7 @@ getItem m e =
                 [(Damage, (fs (e!!50) + fs (e!!51)) `quot` 2), (Speed, fs (e!!63))]
             else
                 []
-        iatype = toEnum $ fs (e!!108)
+        imat = toEnum $ fs (e!!108)
         istats = weaponstats ++ (getMainStats e) ++ (getRes e)
         isuffs = L.concat $ maybeToList $ M.lookup iid (m_sufmap m)
         ilevel = fs (e!!15)
@@ -304,8 +312,9 @@ getItem m e =
         ispells = getItemSpells e
         ispells' = catMaybes $ flip M.lookup (m_spells m) <$> ispells
         istats' = catMaybes $ getSpellStats <$> ispells'
-    in Item iid iname islot iatype (istats++istats') isuffs ilevel iqual reqlevel'
-        (foldMap (B.append "\n") (sp_desc <$> ispells'))
+    in Item iid iname (foldMap (B.append "\n") (sp_desc <$> ispells')) iqual 
+            ilevel imat islot (istats++istats') isuffs rlevel
+
 
 -- getItems :: IO (M.IntMap Item)
 -- getItems = do
