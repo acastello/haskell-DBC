@@ -11,6 +11,7 @@ import qualified Data.Array as A
 import Data.ByteString
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Lazy.Char8 as BLC
 import qualified Data.IntMap as M
 import qualified Data.List as L
 import qualified Data.Map as Ma
@@ -94,12 +95,22 @@ instance Serialize Scientific where
 
 instance Serialize MySQLValue
 
+seq' x = seq x x
+
+enc :: Serialize a => a -> ByteString
+enc = BL.toStrict . compress . encodeLazy 
+
 save :: Serialize a => FilePath -> a -> IO ()
-save file res = B.writeFile file $ BL.toStrict $ compress $ encodeLazy res
+save file res = B.writeFile file $ enc res
+
+dec :: Serialize a => BL.ByteString -> a
+dec = either error id . decode . BL.toStrict . decompress 
+
+dec' :: Serialize a => String -> a
+dec' str = seq ret ret where ret = dec $ BLC.pack str
 
 load :: Serialize a => FilePath -> IO a
-load file = either error id . decode . BL.toStrict . decompress 
-                <$> BL.readFile file
+load file = dec <$> BL.readFile file
 
 saveComp :: Serialize a => FilePath -> [String] -> String -> a -> IO ()
 saveComp file imps var e = let varname = (L.head $ L.words var) in Prelude.writeFile (file ++ ".hs") $

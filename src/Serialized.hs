@@ -1,20 +1,18 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, OverloadedStrings #-}
 
-module Raw_items where
+module Serialized where
+import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Lazy as BL
 import Data.Serialize
 import Codec.Compression.GZip
 import Language.Haskell.TH
 
 import Data.IntMap
-import Types
+-- import Types
+-- import Source
 
-serIn :: String -> FilePath -> Q Exp
-serIn varname filepath = do
-    undefined
+serIn :: FilePath -> Q Exp
+serIn fp = do
+    s <- runIO $ B.readFile fp
+    return $ AppE (VarE $ mkName "dec'") (LitE (StringL $ B.unpack s))
 
-g = do
-    nm1 <- newName "_"
-    nm2 <- newName "_"
-    return (LamE [VarP nm1] (LamE [VarP nm2] (VarE nm1)))
-    
-map' @ Mappings { m_spells = sp } = undefined 

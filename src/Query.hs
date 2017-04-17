@@ -1,5 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses, ExistentialQuantification, TypeFamilies #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, TemplateHaskell #-}
 
 module Query where
 
@@ -17,8 +17,8 @@ import System.Process (callCommand)
 import Source
 import Types
 import Geometry
-import Raw_items
 import OpenGL
+import Serialized
 
 type C a b c = (b -> c) -> a -> c
 
@@ -39,6 +39,9 @@ instance Listable [] where
 
 instance Listable M.IntMap where
     toList' = M.elems
+
+spells :: M.IntMap Spell
+spells = $(serIn "spells.gz")
 
 by_ :: (a -> b) -> C a b c
 by_ = flip (.)
@@ -126,8 +129,8 @@ score tab hay opt = score tab hay [] + maximum ((\l -> score tab l []) <$> opt)
 gos :: GameObjects
 gos = unsafePerformIO loadGameObjects
 
-std :: Int -> [(Stat, Double)] -> [Item -> Bool] -> [Item]
-std n scoretab filts = takes n $ sorts (by_it_score scoretab) $ filters filts raw_items
+-- std :: Int -> [(Stat, Double)] -> [Item -> Bool] -> [Item]
+-- std n scoretab filts = takes n $ sorts (by_it_score scoretab) $ filters filts raw_items
 
 std' xs = loadGameObjects >>= \gos -> foldMap print $ filters xs gos
 

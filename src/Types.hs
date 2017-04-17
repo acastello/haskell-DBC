@@ -36,13 +36,11 @@ data Mappings = Mappings
     , m_sufmap    :: SuffixMap
     }
 
-
 data Slot = Head | Neck | Shoulder | Back | Chest | Waist | Legs | Wrists
     | Hands | Feet | Finger | Trinket | MainHand | OffHand | Weapon | TwoHand
     | Ranged | Bag | HandHeld | Thrown | Ammo | Relic | Quiver | Shirt | Tabard 
     | Shield | UnknownSlot Int
     deriving (Show, Read, Eq, Generic, Ord)
-
 instance Serialize Slot
 instance NFData Slot
 
@@ -51,7 +49,6 @@ isWeapon slot = L.any (== slot) [MainHand, OffHand, Weapon, TwoHand, Ranged]
 
 data ArmorType = NotArmor | Cloth | Leather | Mail | Plate
     deriving (Eq, Ord, Generic)
-
 instance Serialize ArmorType
 instance NFData ArmorType
 
@@ -86,26 +83,14 @@ data Stat = Mana | HP | Agility | Strength | Intellect | Spirit | Stamina
     | HolyRes | ShadowRes | FireRes | FrostRes | NatureRes | ArcaneRes 
     | UnknownStat Int
     deriving (Eq, Read, Generic, Ord)
-
 instance Serialize Stat
 instance NFData Stat
 
 data Quality = Poor | Common | Uncommon | Rare | Epic | Legendary
     | Artifact | BtA
     deriving (Eq, Ord, Show, Read, Generic)
-
-qualc :: Item -> String
-qualc i = col $ case it_qual i of
-    Poor      -> []
-    Common    -> [0,1]
-    Uncommon  -> [1,32]
-    Rare      -> [1,34]
-    Epic      -> [1,35]
-    Legendary -> [1,33]
-    _         -> [1,36]
-
 instance Serialize Quality
-instance NFData Quality
+instance NFData Quality 
 
 instance Enum Quality where
     fromEnum = undefined
@@ -119,10 +104,19 @@ instance Enum Quality where
         6 -> Artifact
         7 -> BtA
 
+qualc :: Item -> String
+qualc i = col $ case it_qual i of
+    Poor      -> []
+    Common    -> [0,1]
+    Uncommon  -> [1,32]
+    Rare      -> [1,34]
+    Epic      -> [1,35]
+    Legendary -> [1,33]
+    _         -> [1,36]
+
 data Class = Mage | Priest | Warlock | Druid | Rogue | Hunter | Shaman
     | DeathKnight | Paladin | Warrior
     deriving (Show, Read, Generic)
-
 instance Serialize Class
 instance NFData Class
 
@@ -132,7 +126,6 @@ data Faction = Alliance | Horde
 instance Show Faction where
     show Alliance = col [1,37,44] ++ "[Alliance]" ++ col []
     show Horde = col [1,30,41] ++ "[Horde]" ++ col []
-
 instance Serialize Faction
 instance NFData Faction
 
@@ -152,7 +145,6 @@ data Item = Item
     , it_rlevel :: Level
     , it_desc   :: ByteString
     } deriving Generic
-
 instance Serialize Item
 instance NFData Item
 
@@ -174,8 +166,8 @@ data Spell = Spell
     , sp_prod   :: [(Word32, Double)]
     , sp_desc   :: ByteString
     } deriving (Show, Generic)
-
 instance Serialize Spell where
+instance NFData Spell where
 
 instance DBCItem Spell where
     cast = do
@@ -218,8 +210,8 @@ data Quest = Quest
     , qt_fac    :: Maybe Faction
     , qt_items  :: [Int]
     } deriving (Show, Generic)
-
-instance Serialize Quest where
+instance Serialize Quest 
+instance NFData Quest 
 
 type SuffixId = Int
 data SuffixEntry = SuffixEntry
@@ -227,8 +219,8 @@ data SuffixEntry = SuffixEntry
     , se_suffix :: ByteString
     , se_enchs  :: [EnchantmentId]
     } deriving (Show, Generic)
-
-instance Serialize SuffixEntry where
+instance Serialize SuffixEntry 
+instance NFData SuffixEntry 
 
 instance DBCItem SuffixEntry where
     cast = do
@@ -251,8 +243,8 @@ data PropertyEntry = PropertyEntry
     , pe_suffix :: ByteString
     , pe_enchs  :: [EnchantmentId]
     } deriving (Show, Generic)
-
 instance Serialize PropertyEntry 
+instance NFData PropertyEntry 
 
 instance DBCItem PropertyEntry where
     cast = do
@@ -274,8 +266,8 @@ data EnchantmentEntry = EnchantmentEntry
     , ee_stats  :: [(Stat,Int)]
     , ee_spells :: [SpellId]
     } deriving (Show, Generic)
-
 instance Serialize EnchantmentEntry 
+instance NFData EnchantmentEntry 
 
 instance DBCItem EnchantmentEntry where
     cast = do
@@ -329,7 +321,6 @@ data Suffix = Suffix
     , su_chance :: Float
     , su_stats  :: [(Stat, Int)]
     } deriving Generic
-
 instance Serialize Suffix 
 instance NFData Suffix
 
@@ -344,8 +335,8 @@ data Point = Point
     , p_z :: Float
     , p_m :: Int
     } deriving (Eq, Generic)
-
 instance Serialize Point
+instance NFData Point
 
 instance Show Point where
     show p = printf "%s(%s%.3f%s,%s %.3f%s,%s %.3f%s)%s %s%-3d%s %s%s%s" 
@@ -366,14 +357,14 @@ data GameObject = GameObject
     , go_name   :: ByteString
     , go_point  :: Point
     } deriving Generic
+instance Serialize GameObject
+instance NFData GameObject 
 
 instance Eq GameObject where
     go == go' = go_id go == go_id go'
 
 instance Ord GameObject where
     compare go go' = compare (go_id go) (go_id go')
-
-instance Serialize GameObject
 
 instance Show GameObject where
     show go = printf "%s#%s%d%s %s %s" (col [1,36]) (col [0,36]) 
