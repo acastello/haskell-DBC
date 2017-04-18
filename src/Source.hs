@@ -32,6 +32,7 @@ import qualified System.IO.Streams as S
 
 import Types
 import DBC
+import SQL
 
 data DBCSources = DBCSources
     { dbcs_spells     :: IntMap Spell
@@ -287,33 +288,33 @@ getSuffixMap m = M.fromList $ L.concat $
 --             _ -> ([],[])
 --     in undefined
 
-getItem :: Mappings -> [MySQLValue] -> Item
-getItem m e =
-    let iid = fs (e!!0)
-        iname = (\(MySQLText t) -> encodeUtf8 t) (e!!4)
-        iqual = toEnum $ fs (e!!6)
-        islot = toEnum $ fs (e!!12)
-        weaponstats = 
-            if isWeapon islot then 
-                [(Damage, (fs (e!!50) + fs (e!!51)) `quot` 2), (Speed, fs (e!!63))]
-            else
-                []
-        imat = toEnum $ fs (e!!108)
-        istats = weaponstats ++ (getMainStats e) ++ (getRes e)
-        isuffs = L.concat $ maybeToList $ M.lookup iid (m_sufmap m)
-        ilevel = fs (e!!15)
-        rlevel = fs (e!!16)
-        iqs = M.filter (\q -> L.any (== iid) (qt_items q)) (m_quests m)
-        reqlevel = if M.null iqs then 
-                      rlevel 
-                    else 
-                      max rlevel (qt_level $ snd $ L.head $ M.toList iqs)
-        reqlevel' = if iqual > Uncommon && reqlevel == 0 then -1 else reqlevel
-        ispells = getItemSpells e
-        ispells' = catMaybes $ flip M.lookup (m_spells m) <$> ispells
-        istats' = catMaybes $ getSpellStats <$> ispells'
-    in Item iid iname (foldMap (B.append "\n") (sp_desc <$> ispells')) iqual 
-            ilevel imat islot (istats++istats') isuffs rlevel
+-- getItem :: Mappings -> [MySQLValue] -> Item
+-- getItem m e =
+--     let iid = fs (e!!0)
+--         iname = (\(MySQLText t) -> encodeUtf8 t) (e!!4)
+--         iqual = toEnum $ fs (e!!6)
+--         islot = toEnum $ fs (e!!12)
+--         weaponstats = 
+--             if isWeapon islot then 
+--                 [(Damage, (fs (e!!50) + fs (e!!51)) `quot` 2), (Speed, fs (e!!63))]
+--             else
+--                 []
+--         imat = toEnum $ fs (e!!108)
+--         istats = weaponstats ++ (getMainStats e) ++ (getRes e)
+--         isuffs = L.concat $ maybeToList $ M.lookup iid (m_sufmap m)
+--         ilevel = fs (e!!15)
+--         rlevel = fs (e!!16)
+--         iqs = M.filter (\q -> L.any (== iid) (qt_items q)) (m_quests m)
+--         reqlevel = if M.null iqs then 
+--                       rlevel 
+--                     else 
+--                       max rlevel (qt_level $ snd $ L.head $ M.toList iqs)
+--         reqlevel' = if iqual > Uncommon && reqlevel == 0 then -1 else reqlevel
+--         ispells = getItemSpells e
+--         ispells' = catMaybes $ flip M.lookup (m_spells m) <$> ispells
+--         istats' = catMaybes $ getSpellStats <$> ispells'
+--     in Item iid iname (foldMap (B.append "\n") (sp_desc <$> ispells')) iqual 
+--             ilevel imat islot (istats++istats') isuffs rlevel
 
 
 -- getItems :: IO (M.IntMap Item)

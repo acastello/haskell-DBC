@@ -1,15 +1,9 @@
-{-# LANGUAGE TemplateHaskell, OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Serialized where
-import qualified Data.ByteString.Char8 as B
-import qualified Data.ByteString.Lazy as BL
-import Data.Serialize
-import Codec.Compression.GZip
-import Language.Haskell.TH
 
-import Data.IntMap
--- import Types
--- import Source
+import qualified Data.ByteString.Char8 as B
+import Language.Haskell.TH
 
 serIn :: FilePath -> Q Exp
 serIn fp = do

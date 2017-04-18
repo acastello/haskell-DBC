@@ -24,6 +24,7 @@ import GHC.Generics
 import Text.Printf (printf)
 
 import DBC
+import SQL
 
 data Mappings = Mappings
     { m_spells    :: M.IntMap Spell
@@ -36,10 +37,10 @@ data Mappings = Mappings
     , m_sufmap    :: SuffixMap
     }
 
-data Slot = Head | Neck | Shoulder | Back | Chest | Waist | Legs | Wrists
-    | Hands | Feet | Finger | Trinket | MainHand | OffHand | Weapon | TwoHand
-    | Ranged | Bag | HandHeld | Thrown | Ammo | Relic | Quiver | Shirt | Tabard 
-    | Shield | UnknownSlot Int
+data Slot = NoSlot | Head | Neck | Shoulder | Back | Chest | Waist | Legs 
+          | Wrists | Hands | Feet | Finger | Trinket | MainHand | OffHand 
+          | Weapon | TwoHand | Ranged | Bag | HandHeld | Thrown | Ammo | Relic 
+          | Quiver | Shirt | Tabard | Shield | UnknownSlot Int
     deriving (Show, Read, Eq, Generic, Ord)
 instance Serialize Slot
 instance NFData Slot
@@ -136,18 +137,56 @@ type ItemLevel = Level
 data SQLItem = SQLItem
     { sqlit_id      :: ItemId
     , sqlit_name    :: ByteString
-    , sqlit_desc    :: ByteString
     , sqlit_level   :: ItemLevel
     , sqlit_qual    :: Quality
     , sqlit_mat     :: Material
     , sqlit_slot    :: Slot
-    , sqlit_stats   :: [(Stat, Int)]
-    , sqlit_suffs   :: [SuffixId]
-    , sqlit_props   :: [PropertyId]
     , sqlit_rlevel  :: Level
-    } deriving Generic
+    , sqlit_stats   :: [(Stat, Int)]
+    , sqlit_suffs   :: Maybe SuffixId
+    , sqlit_props   :: Maybe PropertyId
+    , sqlit_disen   :: Maybe (Level, SQLDisenchantId)
+    } deriving (Generic, Show)
 instance Serialize SQLItem
 instance NFData SQLItem
+
+instance SQL SQLItem where
+    queryText = \_ -> simpleSelect "item_template"
+      [ "entry", "name", "ItemLevel", "Quality", "Material", "InventoryType"
+      , "RequiredLevel"
+      -- stat count, up to 10
+      , "StatsCount"
+      -- stat types
+      , "stat_type1", "stat_type2", "stat_type3", "stat_type4", "stat_type5"
+      , "stat_type6", "stat_type7", "stat_type8", "stat_type9", "stat_type10"
+      -- stat values
+      , "stat_value1", "stat_value2", "stat_value3" , "stat_value4"
+      , "stat_value5", "stat_value6", "stat_value7" , "stat_value8"
+      , "stat_value9", "stat_value10" 
+      
+      , "RandomSuffix", "RandomProperty", "RequiredDisenchantSkill", "DisenchantId" ]
+    fromResult = do
+        id      <- sql_fi 0
+        name    <- sql_bs 1
+        level   <- sql_fi 2
+        qual    <- toEnum <$> sql_fi 3
+        mat     <- toEnum <$> sql_fi 4
+        slot    <- toEnum <$> sql_fi 5
+        rlevel  <- sql_fi 6
+        n       <- sql_fi 7
+        stnames <- mapM (fmap toEnum . sql_fi) [8..17]
+        stvals  <- mapM sql_fi [18..27]
+        let stats = L.take n $ L.zip stnames stvals
+        suffs   <- maybe0 <$> sql_fi 28
+        props   <- maybe0 <$> sql_fi 29
+        disenlv <- sql_fi 30
+        disenid <- sql_fi 31
+        let disen = 
+              if disenlv /= -1 && disenid > 0 then 
+                  Just (disenlv, disenid) 
+              else 
+                  Nothing
+        return $ SQLItem id name level qual mat slot rlevel stats suffs props disen
 
 data Item = Item 
     { it_id     :: ItemId
@@ -157,9 +196,9 @@ data Item = Item
     , it_level  :: ItemLevel 
     , it_mat    :: Material
     , it_slot   :: Slot
+    , it_rlevel :: Level
     , it_stats  :: [(Stat,Int)] 
     , it_suffs  :: [Suffix]
-    , it_rlevel :: Level
     } deriving Generic
 instance Serialize Item
 instance NFData Item
@@ -386,6 +425,12 @@ instance Show GameObject where
     show go = printf "%s#%s%d%s %s %s" (col [1,36]) (col [0,36]) 
               (go_id go) (col []) (unpack $ go_name go) (show $ go_point go)
 
+type SQLDisenchantId = Int
+data SQLDisenchant = SQLDisenchant
+    { sqldis_id     :: SQLDisenchantId
+    , sqldis_drops  :: [(ItemId, Double)]
+    }
+
 getSpellStats :: Spell -> Maybe (Stat,Int)
 getSpellStats sp = (\i -> (i, fromIntegral $ sp_val sp)) <$> 
   case (sp_scho sp, sp_scho2 sp) of
@@ -484,6 +529,7 @@ instance Enum Stat where
 instance Enum Slot where
     fromEnum = undefined
     toEnum i = case i of
+        0   -> NoSlot
         1   -> Head
         2   -> Neck
         3   -> Shoulder
@@ -553,6 +599,8 @@ sample'' = Prelude.putStrLn $ L.unlines $ fmap L.concat $
            <$> formatting numbers where
     numbers = L.concat [[8..29 :: Int]]
     formatting str = (\(b,a) -> b:(if L.null a then [] else formatting a)) (L.splitAt 4 str)
+
+maybe0 i = if i == 0 then Just i else Nothing
 
 tab :: ByteString -> String
 tab bs = do
