@@ -3,14 +3,16 @@
             , DeriveGeneric
             , FlexibleInstances #-}
 
-module Types where
-
-
+module Core
+    ( module Core
+    , module DBC
+    , module SQL 
+    ) where 
 
 import Control.DeepSeq
 import Control.Monad 
 
-import Data.ByteString.Char8 hiding (foldl1)
+import Data.ByteString.Char8 hiding (foldl1, index)
 import qualified Data.ByteString.Char8 as B
 import Data.Int
 import qualified Data.IntMap as M
@@ -33,11 +35,15 @@ data Mappings = Mappings
     , m_quests    :: M.IntMap Quest
     , m_i2s       :: M.IntMap [(SuffixId, Float)]
     , m_i2p       :: M.IntMap [(PropertyId, Float)]
-    , m_suffixes  :: M.IntMap SuffixEntry
-    , m_props     :: M.IntMap PropertyEntry
-    , m_enchs     :: M.IntMap EnchantmentEntry
+    , m_suffixes  :: M.IntMap DBCSuffix
+    , m_props     :: M.IntMap DBCProperty
+    , m_enchs     :: M.IntMap DBCEnchantment
     , m_sufmap    :: SuffixMap
     }
+
+class Make a where
+    make :: IO a
+
 
 data Slot = NoSlot | Head | Neck | Shoulder | Back | Chest | Waist | Legs 
           | Wrists | Hands | Feet | Finger | Trinket | MainHand | OffHand 
@@ -189,6 +195,7 @@ instance SQL SQLItem where
               else 
                   Nothing
         return $ SQLItem id name level qual mat slot rlevel stats suffs props disen
+    finalResult = index sqlit_id
 
 data Item = Item 
     { it_id     :: ItemId
@@ -271,62 +278,64 @@ instance Serialize Quest
 instance NFData Quest 
 
 type SuffixId = Int
-data SuffixEntry = SuffixEntry
-    { se_id     :: SuffixId
-    , se_suffix :: ByteString
-    , se_enchs  :: [EnchantmentId]
+data DBCSuffix = DBCSuffix
+    { dbcsu_id     :: SuffixId
+    , dbcsu_suffix :: ByteString
+    , dbcsu_enchs  :: [EnchantmentId]
     } deriving (Show, Generic)
-instance Serialize SuffixEntry 
-instance NFData SuffixEntry 
+instance Serialize DBCSuffix 
+instance NFData DBCSuffix 
 
-instance DBCItem SuffixEntry where
+instance DBCFile DBCSuffix where
+    dbcFile _ = "ItemRandomSuffix.dbc"
+
+instance DBCItem DBCSuffix where
     cast = do
         id <- fi <$> castWord32
         suffix <- castAt 1
         es <- mapM (fmap fi . castW32At) [19..23]
-        return $ SuffixEntry id suffix (L.filter (/=0) es)
+        return $ DBCSuffix id suffix (L.filter (/=0) es)
 
--- instance Gettable SuffixEntry where
+-- instance Gettable DBCSuffix where
 --     get' strs = do
 --         id <- get' strs
 --         suffix <- get' strs
 --         skip (4*17)
 --         es <- replicateM 5 (get' strs)
---         return $ SuffixEntry id suffix (L.filter (/=0) es)
+--         return $ DBCSuffix id suffix (L.filter (/=0) es)
 
 type PropertyId = Int
-data PropertyEntry = PropertyEntry 
-    { pe_id     :: PropertyId
-    , pe_suffix :: ByteString
-    , pe_enchs  :: [EnchantmentId]
+data DBCProperty = DBCProperty 
+    { dbcpo_id     :: PropertyId
+    , dbcpo_suffix :: ByteString
+    , dbcpo_enchs  :: [EnchantmentId]
     } deriving (Show, Generic)
-instance Serialize PropertyEntry 
-instance NFData PropertyEntry 
+instance Serialize DBCProperty 
+instance NFData DBCProperty 
 
-instance DBCItem PropertyEntry where
+instance DBCFile DBCProperty where
+    dbcFile _ = "ItemRandomProperties.dbc"
+
+instance DBCItem DBCProperty where
     cast = do
         id <- fi <$> castWord32
         suffix <- castAt 1
-        es <- mapM (fmap fi . castW32At) [19..21]
-        return $ PropertyEntry id suffix (L.filter (/=0) es)
+        es <- mapM (fmap fi . castW32At) [2..4]
+        return $ DBCProperty id suffix (L.filter (/=0) es)
 
--- instance Gettable PropertyEntry where
---     get' strs = do
---         id <- get' strs
---         suffix <- get' strs
---         es <- replicateM 3 (get' strs)
---         return $ PropertyEntry id suffix (L.filter (/= 0) es)
- 
 type EnchantmentId = Int
-data EnchantmentEntry = EnchantmentEntry
-    { ee_id     :: EnchantmentId
-    , ee_stats  :: [(Stat,Int)]
-    , ee_spells :: [SpellId]
+data DBCEnchantment = DBCEnchantment
+    { dbcen_id     :: EnchantmentId
+    , dbcen_stats  :: [(Stat,Int)]
+    , dbcen_spells :: [SpellId]
     } deriving (Show, Generic)
-instance Serialize EnchantmentEntry 
-instance NFData EnchantmentEntry 
+instance Serialize DBCEnchantment 
+instance NFData DBCEnchantment 
 
-instance DBCItem EnchantmentEntry where
+instance DBCFile DBCEnchantment where
+    dbcFile _ = "SpellItemEnchantment.dbc"
+
+instance DBCItem DBCEnchantment where
     cast = do
         id <- cast
         ts <- mapM castW32At [2..4]
@@ -345,10 +354,25 @@ instance DBCItem EnchantmentEntry where
                         _ -> ([], [])
                     3 -> ([], [fromIntegral s])
                     _ -> ([], [])) ts ns ss
-        return $ EnchantmentEntry id stats spells
+        return $ DBCEnchantment id stats spells
 
+data SQLSuffix = SQLSuffix
+    { sqlsu_id    :: SuffixId
+    , sqlsu_suffs :: [(SuffixId, Float)]
+    }
 
--- instance Gettable EnchantmentEntry where
+instance SQL SQLSuffix where
+    queryText _ = simpleSelect "item_enchantment_template" ["entry", "ench", "chance"]
+    fromResult = do
+        id <- sql_fi 0
+        suffid <- sql_fi 1
+        chance <- sql_float 2 
+        return $ SQLSuffix id [(suffid, chance)]
+    finalResult xs = M.fromListWith 
+          (\a b -> a { sqlsu_suffs = sqlsu_suffs a ++ sqlsu_suffs b })
+          $ (\e -> (sqlsu_id e, e)) <$> xs
+
+-- instance Gettable DBCEnchantment where
 --     get' strs = do
 --         id <- get' strs
 --         skip 4
@@ -369,7 +393,7 @@ instance DBCItem EnchantmentEntry where
 --                         _ -> ([], [])
 --                     3 -> ([], [fromIntegral s])
 --                     _ -> ([], [])) ts ns ss
---         return $ EnchantmentEntry id stats spells
+--         return $ DBCEnchantment id stats spells
 
 type SuffixMap = M.IntMap [Suffix]
 
@@ -431,7 +455,29 @@ type SQLDisenchantId = Int
 data SQLDisenchant = SQLDisenchant
     { sqldis_id     :: SQLDisenchantId
     , sqldis_drops  :: [(ItemId, Double)]
-    }
+    } deriving (Show, Generic)
+
+instance SQL SQLDisenchant where
+    queryText _ = 
+        "SELECT t.entry, item, chance, sum, mincount, maxcount  \
+        \    FROM (SELECT entry,100-SUM(Chance) as SUM           \
+        \        FROM `disenchant_loot_template`                 \
+        \            WHERE 1 GROUP BY Entry) as s                \
+        \    , `disenchant_loot_template` as t                   \
+        \    WHERE t.entry = s.entry"                            
+    fromResult = do
+        id      <- sql_fi 0
+        item    <- sql_fi 1
+        chance' <- sql_double 2
+        chance''<- sql_double 3
+        let chance = (if chance' == 0 then chance'' else chance') / 100
+        min     <- sql_fi 4
+        max     <- sql_fi 5
+        let amount = (min + max) / 2
+        return $ SQLDisenchant id [(item, chance*amount)]
+    finalResult xs = M.fromListWith
+        (\a b -> a { sqldis_drops = sqldis_drops a ++ sqldis_drops b })
+        $ (\e -> (sqldis_id e, e)) <$> xs
 
 getSpellStats :: Spell -> Maybe (Stat,Int)
 getSpellStats sp = (\i -> (i, fromIntegral $ sp_val sp)) <$> 
@@ -603,6 +649,8 @@ sample'' = Prelude.putStrLn $ L.unlines $ fmap L.concat $
     formatting str = (\(b,a) -> b:(if L.null a then [] else formatting a)) (L.splitAt 4 str)
 
 maybe0 i = if i == 0 then Just i else Nothing
+
+index f = M.fromList . fmap (\e -> (f e, e))
 
 tab :: ByteString -> String
 tab bs = do

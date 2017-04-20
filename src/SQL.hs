@@ -18,6 +18,10 @@ import Text.Printf (printf)
 class SQL a where
     queryText   :: a -> Query
     fromResult  :: [MySQLValue] -> a
+    finalResult :: [a] -> M.IntMap a
+    
+makeSQL :: SQL a => IO (M.IntMap a)
+makeSQL = finalResult <$> loadSQL
 
 loadSQL :: SQL a => IO [a]
 loadSQL = loadSQL' undefined where 
@@ -35,6 +39,9 @@ loadSQL = loadSQL' undefined where
 indexSQL :: SQL a => (a -> Int) -> IO (IntMap a)
 indexSQL f = M.fromList . fmap (\a -> (f a, a)) <$> loadSQL
 
+mergeSQL :: SQL a => (a -> Int) -> IO (IntMap [a])
+mergeSQL f = M.fromListWith (++) . fmap (\a -> (f a, [a])) <$> loadSQL
+
 simpleSelect :: String -> [String] -> Query
 simpleSelect table fields = fromString (printf "SELECT %s FROM %s" comma qtable)
     where
@@ -45,7 +52,7 @@ simpleSelect table fields = fromString (printf "SELECT %s FROM %s" comma qtable)
 sql_bs :: F ByteString
 sql_bs = mkF $ \(MySQLText t) -> encodeUtf8 t
 
-sql_fi :: (Integral a, Num a) => F a
+sql_fi :: Num a => F a
 sql_fi = mkF $ \i -> case i of
     MySQLInt8 n -> fromIntegral n
     MySQLInt8U n -> fromIntegral n
@@ -55,15 +62,26 @@ sql_fi = mkF $ \i -> case i of
     MySQLInt32U n -> fromIntegral n
     MySQLInt64 n -> fromIntegral n
     MySQLInt64U n -> fromIntegral n
-    MySQLFloat n -> ceiling n
 
 sql_float :: F Float
-sql_float = mkF $ \(MySQLFloat i) -> i
+sql_float = mkF $ \i -> case i of
+    MySQLFloat n -> n
+    MySQLDouble n -> realToFrac n
 
 sql_double :: F Double
-sql_double = mkF $ \(MySQLDouble i) -> i
+sql_double = mkF $ \i -> case i of
+    MySQLFloat n -> realToFrac n
+    MySQLDouble n -> n
 
 -- utils
+
+q :: Query -> IO [[MySQLValue]]
+q tab = do
+    conn <- connect defaultConnectInfo { ciUser = "guest"
+        , ciHost = "192.168.1.124", ciDatabase = "world" }
+    ret <- S.toList . snd =<< query_ conn tab
+    close conn
+    return ret
 
 type F a = Int -> [MySQLValue] -> a
 mkF f n xs = f $ xs !! n

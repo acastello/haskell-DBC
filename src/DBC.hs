@@ -46,11 +46,12 @@ castDBC dbc = fmap runRow dbc
     where
         runRow dat = runGet cast (DBCData (strs dbc) dat) (DBCStatus 0 0) 
 
-indexDBC :: DBCItem a => (a -> Int) -> DBC a -> M.IntMap a
-indexDBC f dbc = M.fromList $ (\a -> (f a, a)) <$> rows dbc
+indexDBC :: DBCFile a => (a -> Int) -> IO (M.IntMap a)
+indexDBC f = M.fromList . fmap (\a -> (f a, a)) . rows . castDBC 
+                 <$> loadDBC ((dbcFile . (undefined :: (a -> Int) -> a)) f)
 
-loadIndexed :: DBCItem a => FilePath -> (a -> Int) -> IO (M.IntMap a)
-loadIndexed fp f = indexDBC f . castDBC <$> loadDBC fp
+-- loadIndexed :: DBCItem a => FilePath -> (a -> Int) -> IO (M.IntMap a)
+-- loadIndexed fp f = indexDBC f . castDBC <$> loadDBC fp
 
 takeBytes :: Int -> DBCGet [Word8]
 takeBytes n = do
@@ -63,6 +64,9 @@ takeBytes n = do
 
 class DBCItem a where
     cast :: DBCGet a
+
+class DBCItem a => DBCFile a where
+    dbcFile :: a -> FilePath
 
 castAt :: DBCItem a => Int -> DBCGet a
 castAt n = do

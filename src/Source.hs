@@ -30,28 +30,22 @@ import Database.MySQL.Base
 
 import qualified System.IO.Streams as S
 
-import Types
-import DBC
-import SQL
+import Core
 
 data DBCSources = DBCSources
     { dbcs_spells     :: IntMap Spell
-    , dbcs_suffixes   :: IntMap SuffixEntry
-    , dbcs_properties :: IntMap PropertyEntry
-    , dbcs_enchants   :: IntMap EnchantmentEntry
+    , dbcs_suffixes   :: IntMap DBCSuffix
+    , dbcs_properties :: IntMap DBCProperty
+    , dbcs_enchants   :: IntMap DBCEnchantment
     }
 
 data SQLSources = SQLSources
     { sqls_items      :: IntMap SQLItem
+    , sqls_suffmap    :: IntMap SQLSuffix
+    , sqls_disench    :: IntMap SQLEnch
     }
 
-q :: Query -> IO [[MySQLValue]]
-q tab = do
-    conn <- connect defaultConnectInfo { ciUser = "guest"
-        , ciHost = "192.168.1.124", ciDatabase = "world" }
-    ret <- S.toList . snd =<< query_ conn tab
-    close conn
-    return ret
+instance Make
 
 queryI2s :: IO (M.IntMap [(SuffixId, Float)])
 queryI2s = 
@@ -153,16 +147,16 @@ loadSpells = load "spells.gz"
 saveSpells :: M.IntMap Spell -> IO ()
 saveSpells sp = save "spells.gz" sp
 
-saveSuffixes :: M.IntMap SuffixEntry -> IO ()
+saveSuffixes :: M.IntMap DBCSuffix -> IO ()
 saveSuffixes = save "suffixes.gz"
 
-loadSuffixes :: IO (M.IntMap SuffixEntry)
+loadSuffixes :: IO (M.IntMap DBCSuffix)
 loadSuffixes = load "suffixes.gz"
 
-saveProperties :: M.IntMap PropertyEntry -> IO ()
+saveProperties :: M.IntMap DBCProperty -> IO ()
 saveProperties = save "properties.gz"
 
-loadProperties :: IO (M.IntMap PropertyEntry)
+loadProperties :: IO (M.IntMap DBCProperty)
 loadProperties = load "properties.gz"
 
 saveEnchantments :: M.IntMap EnchantmentEntry -> IO ()
@@ -256,8 +250,8 @@ getSuffixMap m = M.fromList $ L.concat $
             (i,c) <- ps
             maybeToList $ do
                 si <- M.lookup (fromIntegral i) sm
-                es <- traverse (flip M.lookup em) (fromIntegral <$> se_enchs si)
-                return $ getSuffix ss (se_suffix si) c (es >>= ee_stats) (es >>= ee_spells)
+                es <- traverse (flip M.lookup em) (fromIntegral <$> dbcsu_enchs si)
+                return $ getSuffix ss (dbcsu_suffix si) c (es >>= ee_stats) (es >>= ee_spells)
         return (k, L.reverse $ L.sortOn su_chance $ groupSuffixes s)
     , do
         (k, ps) <- M.toList i2p
@@ -265,8 +259,8 @@ getSuffixMap m = M.fromList $ L.concat $
             (i,c) <- ps
             maybeToList $ do
                 pi <- M.lookup (fromIntegral i) pm
-                es <- traverse (flip M.lookup em) (fromIntegral <$> pe_enchs pi)
-                return $ getSuffix ss (pe_suffix pi) c (es >>= ee_stats) (es >>= ee_spells)
+                es <- traverse (flip M.lookup em) (fromIntegral <$> dbcpo_enchs pi)
+                return $ getSuffix ss (dbcpo_suffix pi) c (es >>= ee_stats) (es >>= ee_spells)
         return (k, L.reverse $ L.sortOn su_chance $ groupSuffixes s)
     ] where 
         ss = m_spells m
