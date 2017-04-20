@@ -9,13 +9,18 @@ module Core
     , module SQL 
     ) where 
 
+import Codec.Compression.GZip
+
 import Control.DeepSeq
 import Control.Monad 
 
 import Data.ByteString.Char8 hiding (foldl1, index)
 import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Lazy.Char8 as BLC
 import Data.Int
 import qualified Data.IntMap as M
+import Data.IntMap (IntMap(..))
 import qualified Data.List as L
 import qualified Data.Map as Ma
 import Data.Maybe
@@ -41,9 +46,15 @@ data Mappings = Mappings
     , m_sufmap    :: SuffixMap
     }
 
-class Make a where
-    make :: IO a
-
+class Serialize a => Make a where
+    make  :: IO a
+    file  :: a -> FilePath
+    save' :: a -> IO ()
+    save' e = save (file e) e
+    load' :: IO a
+    load' = load'' undefined where
+        load'' :: Make a => a -> IO a
+        load'' x = load (file x)
 
 data Slot = NoSlot | Head | Neck | Shoulder | Back | Chest | Waist | Legs 
           | Wrists | Hands | Feet | Finger | Trinket | MainHand | OffHand 
@@ -627,6 +638,21 @@ replaceSubstring needle rep hay =
     case breakSubstring needle hay of
         (l,"") -> l
         (l,r) -> l `B.append` rep `B.append` (replaceSubstring needle rep $ B.drop (B.length needle) r) 
+
+enc :: Serialize a => a -> ByteString
+enc = BL.toStrict . compress . encodeLazy 
+
+save :: Serialize a => FilePath -> a -> IO ()
+save file res = B.writeFile file $ enc res
+
+dec :: Serialize a => BL.ByteString -> a
+dec = either error id . decode . BL.toStrict . decompress 
+
+dec' :: Serialize a => String -> a
+dec' str = seq ret ret where ret = dec $ BLC.pack str
+
+load :: Serialize a => FilePath -> IO a
+load file = dec <$> BL.readFile file
 
 --
 -- utils

@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, DeriveGeneric #-}
 
 module Source where
 
@@ -6,6 +6,7 @@ import Codec.Compression.GZip
 
 import Control.DeepSeq
 import Control.Exception (evaluate)
+import Control.Monad
 
 import qualified Data.Array as A
 import Data.ByteString
@@ -28,6 +29,8 @@ import Data.Word
 
 import Database.MySQL.Base
 
+import GHC.Generics
+
 import qualified System.IO.Streams as S
 
 import Core
@@ -42,10 +45,17 @@ data DBCSources = DBCSources
 data SQLSources = SQLSources
     { sqls_items      :: IntMap SQLItem
     , sqls_suffmap    :: IntMap SQLSuffix
-    , sqls_disench    :: IntMap SQLEnch
-    }
+    , sqls_disench    :: IntMap SQLDisenchant
+    } deriving Generic
+instance Serialize SQLSources
 
-instance Make
+instance Make SQLSources where
+    make = liftM3 SQLSources make make make
+
+-- sourced, serialized data
+
+dbcsSpells :: IntMap Spell
+dbcsSpells = $(serIn 
 
 queryI2s :: IO (M.IntMap [(SuffixId, Float)])
 queryI2s = 
@@ -103,17 +113,8 @@ seq' x = seq x x
 enc :: Serialize a => a -> ByteString
 enc = BL.toStrict . compress . encodeLazy 
 
-save :: Serialize a => FilePath -> a -> IO ()
-save file res = B.writeFile file $ enc res
-
-dec :: Serialize a => BL.ByteString -> a
-dec = either error id . decode . BL.toStrict . decompress 
-
 dec' :: Serialize a => String -> a
 dec' str = seq ret ret where ret = dec $ BLC.pack str
-
-load :: Serialize a => FilePath -> IO a
-load file = dec <$> BL.readFile file
 
 saveComp :: Serialize a => FilePath -> [String] -> String -> a -> IO ()
 saveComp file imps var e = let varname = (L.head $ L.words var) in Prelude.writeFile (file ++ ".hs") $
@@ -159,12 +160,6 @@ saveProperties = save "properties.gz"
 loadProperties :: IO (M.IntMap DBCProperty)
 loadProperties = load "properties.gz"
 
-saveEnchantments :: M.IntMap EnchantmentEntry -> IO ()
-saveEnchantments = save "enchantments.gz"
-
-loadEnchantments :: IO (M.IntMap EnchantmentEntry)
-loadEnchantments = load "enchantments.gz"
-
 saveSuffixMap :: SuffixMap -> IO ()
 saveSuffixMap = save "suffixMap.gz"
 
@@ -182,18 +177,6 @@ loadItems = load "items.gz"
 
 saveItems :: M.IntMap Item -> IO ()
 saveItems is = save "items.gz" is
-
-loadMappings :: IO Mappings
-loadMappings = do
-    ss <- evaluate =<< loadSpells
-    qs <- evaluate =<< loadQuests
-    i2s <- evaluate =<< load "i2s.gz"
-    i2p <- evaluate =<< load "i2p.gz"
-    suff <- evaluate =<< loadSuffixes
-    ps <- evaluate =<< loadProperties
-    es <- evaluate =<< loadEnchantments
-    sm <- evaluate =<< loadSuffixMap
-    evaluate $ Mappings ss qs i2s i2p suff ps es sm
 
 getQuest :: [MySQLValue] -> Quest
 getQuest e =
@@ -251,7 +234,7 @@ getSuffixMap m = M.fromList $ L.concat $
             maybeToList $ do
                 si <- M.lookup (fromIntegral i) sm
                 es <- traverse (flip M.lookup em) (fromIntegral <$> dbcsu_enchs si)
-                return $ getSuffix ss (dbcsu_suffix si) c (es >>= ee_stats) (es >>= ee_spells)
+                return $ getSuffix ss (dbcsu_suffix si) c (es >>= dbcen_stats) (es >>= dbcen_spells)
         return (k, L.reverse $ L.sortOn su_chance $ groupSuffixes s)
     , do
         (k, ps) <- M.toList i2p
@@ -260,7 +243,7 @@ getSuffixMap m = M.fromList $ L.concat $
             maybeToList $ do
                 pi <- M.lookup (fromIntegral i) pm
                 es <- traverse (flip M.lookup em) (fromIntegral <$> dbcpo_enchs pi)
-                return $ getSuffix ss (dbcpo_suffix pi) c (es >>= ee_stats) (es >>= ee_spells)
+                return $ getSuffix ss (dbcpo_suffix pi) c (es >>= dbcen_stats) (es >>= dbcen_spells)
         return (k, L.reverse $ L.sortOn su_chance $ groupSuffixes s)
     ] where 
         ss = m_spells m
