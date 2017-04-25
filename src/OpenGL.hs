@@ -12,6 +12,7 @@ import Control.Concurrent
 import Control.Monad
 
 import Data.Int
+import qualified Data.IntMap as M
 import Data.IORef
 
 import Graphics.UI.GLUT
@@ -47,6 +48,10 @@ instance Bidimensional a => Bidimensional [a] where
         _3 (_,_,e,_) = e
         _4 (_,_,_,e) = e
         bs = bounds <$> xs
+
+instance Bidimensional a => Bidimensional (M.IntMap a) where
+    vert = mapM_ vert
+    bounds = bounds . M.elems
 
 data Draw a = 
     P { drawEl :: a }

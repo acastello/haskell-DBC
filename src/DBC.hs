@@ -46,9 +46,8 @@ castDBC dbc = fmap runRow dbc
     where
         runRow dat = runGet cast (DBCData (strs dbc) dat) (DBCStatus 0 0) 
 
-indexDBC :: DBCFile a => (a -> Int) -> IO (M.IntMap a)
-indexDBC f = M.fromList . fmap (\a -> (f a, a)) . rows . castDBC 
-                 <$> loadDBC ((dbcFile . (undefined :: (a -> Int) -> a)) f)
+indexDBC :: DBCFile a => (a -> Int) -> DBC a -> M.IntMap a
+indexDBC f = M.fromList . fmap (\a -> (f a, a)) . rows 
 
 -- loadIndexed :: DBCItem a => FilePath -> (a -> Int) -> IO (M.IntMap a)
 -- loadIndexed fp f = indexDBC f . castDBC <$> loadDBC fp
@@ -66,7 +65,13 @@ class DBCItem a where
     cast :: DBCGet a
 
 class DBCItem a => DBCFile a where
-    dbcFile :: a -> FilePath
+    dbcFile   :: a -> FilePath
+    dbcIndex  :: a -> Int
+
+makeDBC :: DBCFile a => IO (M.IntMap a)
+makeDBC = makeDBC' undefined where
+    makeDBC' :: DBCFile a => a -> IO (M.IntMap a)
+    makeDBC' e = indexDBC (dbcIndex) <$> castDBC <$> loadDBC (dbcFile e)
 
 castAt :: DBCItem a => Int -> DBCGet a
 castAt n = do

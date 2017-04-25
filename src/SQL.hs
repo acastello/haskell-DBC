@@ -50,7 +50,9 @@ simpleSelect table fields = fromString (printf "SELECT %s FROM %s" comma qtable)
         comma = L.concat $ L.intersperse "," quotfields
 
 sql_bs :: F ByteString
-sql_bs = mkF $ \(MySQLText t) -> encodeUtf8 t
+sql_bs = mkF $ \i -> case i of
+    MySQLText t -> encodeUtf8 t
+    MySQLNull -> ""
 
 sql_fi :: Num a => F a
 sql_fi = mkF $ \i -> case i of

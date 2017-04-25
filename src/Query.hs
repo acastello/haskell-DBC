@@ -4,6 +4,7 @@
 module Query where
 
 import Control.Concurrent
+import Control.Monad
 
 import qualified Data.ByteString.Char8 as B
 import qualified Data.IntMap as M
@@ -14,8 +15,8 @@ import Data.Word
 import System.IO.Unsafe
 import System.Process (callCommand)
 
+import Core
 import Source
-import Types
 import Geometry
 import OpenGL
 import Serialized
@@ -40,9 +41,6 @@ instance Listable [] where
 instance Listable M.IntMap where
     toList' = M.elems
 
-spells :: M.IntMap Spell
-spells = $(serIn "spells.gz")
-
 by_ :: (a -> b) -> C a b c
 by_ = flip (.)
 
@@ -54,8 +52,9 @@ sorts f = L.reverse . L.sortOn (f id) . toList'
 
 takes = L.take
 
-groups :: (Listable f, Eq b) => C a b b -> f a -> [[a]]
-groups f = L.groupBy (\a b -> f id a == f id b) . toList'
+groups :: (Listable f, Eq b) => C a b b -> f a -> [(b,[a])]
+groups f = fmap (\xs -> (f id (head xs), xs)) .
+           L.groupBy (\a b -> f id a == f id b) . toList' 
 
 like :: B.ByteString -> B.ByteString -> Bool
 like = B.isInfixOf
@@ -73,7 +72,7 @@ dist p0 p1 =
 by_it_id = by_ it_id
 by_it_name = by_ it_name
 by_it_slot = by_ it_slot
-by_it_atype = by_ it_atype
+by_it_mat = by_ it_mat
 by_it_stats = by_ it_stats
 by_it_level = by_ it_level
 by_it_qual = by_ it_qual
@@ -89,11 +88,42 @@ by_it_score tab = by_ (\i -> score tab (it_stats i)
 -- by_se_desc = by_ se_desc
 
 -- GameObject getters
-by_go_id    = by_ go_id
-by_go_name  = by_ go_name
-by_go_p    = by_ go_point
-by_go_m    = by_ (p_m . go_point)
-by_go_dist p = by_ (dist p . go_point)
+by_go_id      = by_ go_id
+by_go_name    = by_ go_name
+by_go_p       = by_ go_point
+by_go_m       = by_ (p_m . go_point)
+by_go_cd      = by_ go_cd
+by_go_dist    = \p -> by_ (dist p . go_point)
+
+-- Spell getters
+by_sp_id      = by_ sp_id
+by_sp_reag    = by_ sp_reag
+by_sp_prod    = by_ sp_prod
+by_sp_disen   = by_ 
+    $ \s -> do
+        (iid, quant) <- sp_prod s
+        maybe [] id $ do
+            it <- M.lookup iid items
+            return $ fmap (fmap (*quant)) (it_disen it)
+    
+
+has_reagent rs = by_sp_reag (any ((\e -> any (== e) rs) . fst))
+
+-- weight :: [a -> Double] -> a -> Double
+-- weight xs a = sum $ ($ a) <$> xs
+
+weight :: (Eq a, Real b, Real c) => [(a, b)] -> [(a, c)] -> Double
+weight xs ys = sum $ do
+    (x, wei) <- xs
+    (y, amo) <- ys
+    if x == y then
+        return (any2d wei * any2d amo)
+    else
+        return 0
+
+-- efficiency xs ys e = 
+
+disenchantEff ew iw = liftM2 (/) (by_sp_disen (weight ew)) (by_sp_reag (weight iw))
 
 -- generic comparing functions
 is_instance n = not $ any (== n) [0, 1, 530, 571]
@@ -126,13 +156,10 @@ score tab hay [] = L.sum $ do
         []
 score tab hay opt = score tab hay [] + maximum ((\l -> score tab l []) <$> opt)
 
-gos :: GameObjects
-gos = unsafePerformIO loadGameObjects
-
 -- std :: Int -> [(Stat, Double)] -> [Item -> Bool] -> [Item]
 -- std n scoretab filts = takes n $ sorts (by_it_score scoretab) $ filters filts raw_items
 
-std' xs = loadGameObjects >>= \gos -> foldMap print $ filters xs gos
+-- std' xs = loadGameObjects >>= \gos -> foldMap print $ filters xs gos
 
 dmg = [(Damage, 1.0)]
 
@@ -174,9 +201,18 @@ spScore = [ (SpellPower, 1), (Hit, 0.5), (Intellect, 0.5), (Crit, 0.5)
 
 mp5Score = [ (Spirit, 2), (ManaPer5, 1), (Intellect, 0.1) ]
 
-goitem id = callCommand $ "xdg-open http://truewow.org/armory/item.php?item=" ++ show id
+-- goitem id = callCommand $ "xdg-open http://truewow.org/armory/item.php?item=" ++ show id
 
 -- util
+
+any2d :: (Real a, Fractional c) => a -> c
+any2d = fromRational . toRational
+
+showItId id = maybe "" show (M.lookup id items)
+
+itId :: B.ByteString -> ItemId
+itId name = it_id $ head $ toList' $ filters [by_it_name (== name)] items
+
 instance Bidimensional Point where
     vert Point { p_x = x, p_y = y } = vertex $ Vertex2 (-y) x
     bounds Point { p_x = x, p_y = y } 
@@ -185,7 +221,7 @@ instance Bidimensional Point where
 p2tuple :: Point -> (Float, Float, Float, Word32)
 p2tuple p = (p_x p, p_y p, p_z p, fromIntegral $ p_m p)
 
-saveGO :: GameObjects -> IO ()
-saveGO [] = error "no gameobjects"
-saveGO xs = save ("tup4_" ++ B.unpack (go_name $ head xs) ++ ".gz") 
-                  ((p2tuple . go_point) <$> xs)
+-- saveGO :: M.IntMap GameObject -> IO ()
+-- saveGO [] = error "no gameobjects"
+-- saveGO xs = save ("tup4_" ++ B.unpack (go_name $ head xs) ++ ".gz") 
+--                   ((p2tuple . go_point) <$> xs)

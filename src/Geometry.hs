@@ -4,7 +4,7 @@ import Data.List
 import Data.Maybe
 import qualified Data.List as L
 
-import Types
+import Core
 
 type Polygon = [Point]
 

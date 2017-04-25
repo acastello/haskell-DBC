@@ -18,7 +18,9 @@ import Data.ByteString.Char8 hiding (foldl1, index)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Char8 as BLC
+import Data.Function
 import Data.Int
+import qualified Data.Map as Ma
 import qualified Data.IntMap as M
 import Data.IntMap (IntMap(..))
 import qualified Data.List as L
@@ -206,30 +208,43 @@ instance SQL SQLItem where
               else 
                   Nothing
         return $ SQLItem id name level qual mat slot rlevel stats suffs props disen
-    finalResult = index sqlit_id
+    finalResult = index' sqlit_id
+
+instance Make (IntMap SQLItem) where
+    file _ = "sqlItems.gz"
+    make = makeSQL
 
 data Item = Item 
     { it_id     :: ItemId
     , it_name   :: ByteString 
     , it_desc   :: ByteString
-    , it_qual   :: Quality
     , it_level  :: ItemLevel 
+    , it_qual   :: Quality
     , it_mat    :: Material
     , it_slot   :: Slot
     , it_rlevel :: Level
-    , it_stats  :: [(Stat,Int)] 
+    , it_stats  :: [(Stat, Int)] 
     , it_suffs  :: [Suffix]
+    , it_disenlv:: Maybe Int
+    , it_disen  :: [(ItemId, Double)]
     } deriving Generic
 instance Serialize Item
 instance NFData Item
 
 instance Show Item where
     show i = printf "%s#%s%-5d %s (%s) %s%s%s%s%s\n" 
-        (col [1,36]) (col [0,36]) (it_id i) (qualc i ++ (unpack $ it_name i) ++ col [])
+        (col [1,36]) (col [0,36]) (it_id i) 
+        (qualc i ++ (unpack $ it_name i) ++ col [])
         (appendAT (show $ it_slot i) (it_mat i)) 
         (showStats $ it_stats i) (col [32]) (tab $ it_desc i) (col [])
         (foldMap ("\n        " ++) (show <$> it_suffs i))
         
+-- makeItem dbc sql it = Item 
+    -- (sqlit_id it) (sqlit_name it) desc (sqlit_level it)
+    -- lv qual mat
+    -- slot rlevel
+    -- stats
+
 type SpellId = Int
 
 data Spell = Spell
@@ -237,12 +252,17 @@ data Spell = Spell
     , sp_val    :: Int32
     , sp_scho   :: Word32
     , sp_scho2  :: Word32
-    , sp_reag   :: [(Word32, ItemId)]
-    , sp_prod   :: [(Word32, Double)]
+    , sp_reag   :: [(ItemId, Int)]
+    , sp_prod   :: [(ItemId, Double)]
+    , sp_name   :: ByteString
     , sp_desc   :: ByteString
     } deriving (Show, Generic)
 instance Serialize Spell where
 instance NFData Spell where
+
+instance DBCFile Spell where
+    dbcIndex = sp_id
+    dbcFile _ = "Spell.dbc"
 
 instance DBCItem Spell where
     cast = do
@@ -250,6 +270,7 @@ instance DBCItem Spell where
         n <- (+1) <$> castAt 80
         t1 <- castAt 95
         t2 <- castAt 110
+        name <- castAt 136
         desc <- castAt 170
         reag <- do
             ids <- mapM castAt [52..59]
@@ -261,9 +282,13 @@ instance DBCItem Spell where
             dice <- mapM 
               (fmap (\x -> (1 + fi x)/2) . (castAt :: Int -> DBCGet Word32)) 
               [74..76]
-            return $ L.zip ids (L.zipWith (+) quants dice)
-        return $ Spell id n t1 t2 reag prod
+            return $ L.zip ids (L.zipWith (+) dice quants)
+        return $ Spell id n t1 t2 reag prod name
             (replaceSubstring "$s1" (pack $ show n) desc)
+
+instance Make (IntMap Spell) where
+    file _ = "spells.gz"
+    make = makeDBC
 
 -- instance Gettable Spell where
 --     get' strs = do
@@ -298,6 +323,7 @@ instance Serialize DBCSuffix
 instance NFData DBCSuffix 
 
 instance DBCFile DBCSuffix where
+    dbcIndex = dbcsu_id
     dbcFile _ = "ItemRandomSuffix.dbc"
 
 instance DBCItem DBCSuffix where
@@ -306,6 +332,10 @@ instance DBCItem DBCSuffix where
         suffix <- castAt 1
         es <- mapM (fmap fi . castW32At) [19..23]
         return $ DBCSuffix id suffix (L.filter (/=0) es)
+
+instance Make (IntMap DBCSuffix) where
+    file _ = "dbcSuffixes.gz"
+    make = makeDBC
 
 -- instance Gettable DBCSuffix where
 --     get' strs = do
@@ -325,6 +355,7 @@ instance Serialize DBCProperty
 instance NFData DBCProperty 
 
 instance DBCFile DBCProperty where
+    dbcIndex = dbcpo_id
     dbcFile _ = "ItemRandomProperties.dbc"
 
 instance DBCItem DBCProperty where
@@ -333,6 +364,10 @@ instance DBCItem DBCProperty where
         suffix <- castAt 1
         es <- mapM (fmap fi . castW32At) [2..4]
         return $ DBCProperty id suffix (L.filter (/=0) es)
+
+instance Make (IntMap DBCProperty) where
+    file _ = "dbcProperties.gz"
+    make = makeDBC
 
 type EnchantmentId = Int
 data DBCEnchantment = DBCEnchantment
@@ -344,6 +379,7 @@ instance Serialize DBCEnchantment
 instance NFData DBCEnchantment 
 
 instance DBCFile DBCEnchantment where
+    dbcIndex = dbcen_id
     dbcFile _ = "SpellItemEnchantment.dbc"
 
 instance DBCItem DBCEnchantment where
@@ -367,10 +403,15 @@ instance DBCItem DBCEnchantment where
                     _ -> ([], [])) ts ns ss
         return $ DBCEnchantment id stats spells
 
+instance Make (IntMap DBCEnchantment) where
+    file _ = "dbcEnchantments.gz"
+    make = makeDBC
+
 data SQLSuffix = SQLSuffix
     { sqlsu_id    :: SuffixId
     , sqlsu_suffs :: [(SuffixId, Float)]
-    }
+    } deriving (Generic)
+instance Serialize SQLSuffix
 
 instance SQL SQLSuffix where
     queryText _ = simpleSelect "item_enchantment_template" ["entry", "ench", "chance"]
@@ -383,30 +424,9 @@ instance SQL SQLSuffix where
           (\a b -> a { sqlsu_suffs = sqlsu_suffs a ++ sqlsu_suffs b })
           $ (\e -> (sqlsu_id e, e)) <$> xs
 
--- instance Gettable DBCEnchantment where
---     get' strs = do
---         id <- get' strs
---         skip 4
---         ts <- replicateM 3 getWord32le
---         ns <- replicateM 3 $ fromIntegral <$> getWord32le
---         skip (3*4)
---         ss <- replicateM 3 getWord32le
---         let (stats, spells) = (\(a,b) -> (L.concat a, L.concat b)) $ L.unzip $
---                 zipWith3 (\t n s -> case t of
---                     5 -> ([(toEnum $ fromIntegral s, n)], [])
---                     4 -> case s of
---                         1 -> ([(HolyRes, n)], [])
---                         2 -> ([(FireRes, n)], [])
---                         3 -> ([(NatureRes, n)], [])
---                         4 -> ([(FrostRes, n)], [])
---                         5 -> ([(ShadowRes, n)], [])
---                         6 -> ([(ArcaneRes, n)], [])
---                         _ -> ([], [])
---                     3 -> ([], [fromIntegral s])
---                     _ -> ([], [])) ts ns ss
---         return $ DBCEnchantment id stats spells
-
-type SuffixMap = M.IntMap [Suffix]
+instance Make (IntMap SQLSuffix) where
+    file _ = "sqlSuffixes.gz"
+    make = makeSQL
 
 data Suffix = Suffix
     { su_suffix :: ByteString
@@ -420,6 +440,15 @@ instance Show Suffix where
     show su = printf "%s%s%s (%2.1f %%) %s%s"
           (col [1,3,32]) (unpack (su_suffix su)) (col [0,3]) 
           (su_chance su) (showStats (su_stats su)) (col [23])
+
+type SuffixMap = Ma.Map (Either SuffixId PropertyId) [Suffix]
+
+getSuffix :: M.IntMap Spell -> ByteString -> Float -> [(Stat, Int)] -> [SpellId] -> Suffix
+getSuffix ss su ch st sl = Suffix su ch $ st ++ do
+    sid <- sl
+    maybeToList $ do
+        sp <- M.lookup (fromIntegral sid) ss
+        getSpellStats sp
 
 data Point = Point
     { p_x :: Float
@@ -442,31 +471,80 @@ p2t Point { p_x = x, p_y = y, p_z = z, p_m = m } = (x,y,z,fromIntegral m)
 t2p :: (Float, Float, Float, Word32) -> Point
 t2p (x,y,z,m) = Point x y z (fromIntegral m)
 
-type GameObjects = [GameObject]
-
 data GameObject = GameObject
     { go_id     :: Int
+    , go_guid   :: Int
     , go_name   :: ByteString
     , go_point  :: Point
+    , go_cd     :: Int
     } deriving Generic
 instance Serialize GameObject
 instance NFData GameObject 
 
 instance Eq GameObject where
-    go == go' = go_id go == go_id go'
+    (==) = (==) `on` go_id 
 
 instance Ord GameObject where
-    compare go go' = compare (go_id go) (go_id go')
+    compare = compare `on` go_id
 
 instance Show GameObject where
     show go = printf "%s#%s%d%s %s %s" (col [1,36]) (col [0,36]) 
               (go_id go) (col []) (unpack $ go_name go) (show $ go_point go)
+
+instance SQL GameObject where
+    queryText _ = "SELECT `entry`,`guid`,`name`,`position_x`,`position_y`,`position_z`,`map`,`spawntimesecs` FROM `gameobject`,`gameobject_template` WHERE `id` = `entry` ORDER BY `entry`"
+    fromResult = do
+        id <- sql_fi 0
+        guid <- sql_fi 1
+        name <- sql_bs 2
+        x <- sql_float 3
+        y <- sql_float 4
+        z <- sql_float 5
+        m <- sql_fi 6
+        t <- sql_fi 7
+        return $ GameObject id guid name (Point x y z m) t
+    finalResult = index' go_guid
+
+instance Make (IntMap GameObject) where
+    file _ = "gameObjects.gz"
+    make = makeSQL
+
+data Creature = Creature
+    { cr_id     :: Int
+    , cr_guid   :: Int
+    , cr_name   :: ByteString
+    , cr_title  :: ByteString
+    , cr_point  :: Point
+    } deriving (Show, Generic)
+instance Serialize Creature
+
+instance Eq Creature where
+    (==) = (==) `on` cr_id
+
+instance SQL Creature where
+    queryText _ = "SELECT `id`, `guid`, `name`, `subname`, `position_x`, `position_y`, `position_z`, `map` FROM `creature`, `creature_template` WHERE `entry` = `id`"
+    fromResult = do
+        id <- sql_fi 0
+        guid <- sql_fi 1
+        name <- sql_bs 2
+        title <- sql_bs 3
+        x <- sql_float 4
+        y <- sql_float 5
+        z <- sql_float 6
+        m <- sql_fi 7
+        return $ Creature id guid name title (Point x y z m)
+    finalResult = index' cr_guid
+
+instance Make (IntMap Creature) where
+    file _ = "creatures.gz"
+    make = makeSQL
 
 type SQLDisenchantId = Int
 data SQLDisenchant = SQLDisenchant
     { sqldis_id     :: SQLDisenchantId
     , sqldis_drops  :: [(ItemId, Double)]
     } deriving (Show, Generic)
+instance Serialize SQLDisenchant
 
 instance SQL SQLDisenchant where
     queryText _ = 
@@ -489,6 +567,10 @@ instance SQL SQLDisenchant where
     finalResult xs = M.fromListWith
         (\a b -> a { sqldis_drops = sqldis_drops a ++ sqldis_drops b })
         $ (\e -> (sqldis_id e, e)) <$> xs
+
+instance Make (IntMap SQLDisenchant) where
+    file _ = "sqlDisenchants.gz"
+    make = makeSQL
 
 getSpellStats :: Spell -> Maybe (Stat,Int)
 getSpellStats sp = (\i -> (i, fromIntegral $ sp_val sp)) <$> 
@@ -676,7 +758,7 @@ sample'' = Prelude.putStrLn $ L.unlines $ fmap L.concat $
 
 maybe0 i = if i == 0 then Just i else Nothing
 
-index f = M.fromList . fmap (\e -> (f e, e))
+index' f = M.fromList . fmap (\e -> (f e, e))
 
 tab :: ByteString -> String
 tab bs = do

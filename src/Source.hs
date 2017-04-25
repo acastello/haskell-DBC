@@ -1,4 +1,5 @@
-{-# LANGUAGE OverloadedStrings, DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings, DeriveGeneric, TemplateHaskell,
+ FlexibleInstances #-}
 
 module Source where
 
@@ -34,57 +35,144 @@ import GHC.Generics
 import qualified System.IO.Streams as S
 
 import Core
+import Serialized
 
 data DBCSources = DBCSources
     { dbcs_spells     :: IntMap Spell
     , dbcs_suffixes   :: IntMap DBCSuffix
     , dbcs_properties :: IntMap DBCProperty
     , dbcs_enchants   :: IntMap DBCEnchantment
-    }
+    } deriving Generic
+instance Serialize DBCSources
+
+instance Make DBCSources where
+    file = undefined
+    make = liftM4 DBCSources make make make make
+    load' = liftM4 DBCSources load' load' load' load'
+    save' (DBCSources a b c d) = save' a >> save' b >> save' c >> save' d
 
 data SQLSources = SQLSources
     { sqls_items      :: IntMap SQLItem
     , sqls_suffmap    :: IntMap SQLSuffix
     , sqls_disench    :: IntMap SQLDisenchant
+    , sqls_gobjs      :: IntMap GameObject
     } deriving Generic
 instance Serialize SQLSources
 
 instance Make SQLSources where
-    make = liftM3 SQLSources make make make
+    file _ = undefined
+    make = liftM4 SQLSources make make make make
+    load' = liftM4 SQLSources load' load' load' load'
+    save' (SQLSources a b c d) = save' a >> save' b >> save' c >> save' d
+
+data Maps = Maps
+    { map_suffmap     :: SuffixMap
+    } deriving Generic
+instance Serialize Maps
+
+instance Make Maps where
+    file = undefined
+    make = liftM Maps make
+    load' = liftM Maps load'
+    save' (Maps a) = save' a 
+
+data FinalData = FinalData
+    { final_items     :: IntMap Item
+    } deriving Generic
+instance Serialize FinalData
+
+instance Make FinalData where
+    file = undefined
+    make = liftM FinalData make
+    load' = liftM FinalData load'
+    save' (FinalData a) = save' a
+
+
+instance Make SuffixMap where
+    file _ = "suffixMap.gz"
+    make = return $ makeSuffixMap dbcSources sqlSources
+
+makeSuffixMap :: DBCSources -> SQLSources -> SuffixMap
+makeSuffixMap dbc sql = Ma.fromList (f $ M.elems (sqls_suffmap sql)) where
+    f = foldMap $ \(SQLSuffix id xs) -> [(Left id, leftmap xs), (Right id, rightmap xs)]
+    map sourcef enchsf stringf xs = do
+        (id, chance) <- xs
+        L.reverse $ L.sortOn su_chance $ groupSuffixes $ maybeToList $ do
+            sid <- M.lookup id (sourcef dbc)
+            encs <- mapM (flip M.lookup $ dbcs_enchants dbc) (enchsf sid)
+            return $ getSuffix
+                (dbcs_spells dbc) (stringf sid) chance 
+                (encs >>= dbcen_stats) (encs >>= dbcen_spells) 
+    leftmap = map dbcs_suffixes dbcsu_enchs dbcsu_suffix
+    rightmap = map dbcs_properties dbcpo_enchs dbcpo_suffix
+
+instance Make (IntMap Item) where
+    file _ = "items.gz"
+    make = return $ fmap (makeItem dbcSources sqlSources maps) 
+           $ (sqls_items sqlSources)
+
+makeItem :: DBCSources -> SQLSources -> Maps -> SQLItem -> Item
+makeItem dbc sql maps it = Item
+    (sqlit_id it) (sqlit_name it) desc (sqlit_level it) (sqlit_qual it)
+    (sqlit_mat it) (sqlit_slot it) (sqlit_rlevel it) stats suffs dislv disens
+      where
+        desc = "" -- foldMap (B.append "\n") (sp_desc <$> 
+        stats = (sqlit_stats it) -- ++ getSpellStats <$> (
+        suffs = maybe [] L.concat $ do
+            suid <- sqlit_suffs it
+            pid <- sqlit_props it
+            let smap = map_suffmap maps
+            return $ foldMap maybeToList $ 
+                [Ma.lookup (Left suid) smap, Ma.lookup (Right pid) smap]
+        (dislv, disens) = maybe (Nothing, []) (\(a,b) -> (Just a, b)) $ do
+            (lv, id) <- sqlit_disen it
+            encs <- M.lookup id (sqls_disench sql)
+            return (lv, sqldis_drops encs)
 
 -- sourced, serialized data
 
-dbcsSpells :: IntMap Spell
-dbcsSpells = $(serIn 
+dbcSources :: DBCSources
+dbcSources = DBCSources spells dbcSuffixes dbcProperties dbcEnchantments
 
-queryI2s :: IO (M.IntMap [(SuffixId, Float)])
-queryI2s = 
-    queryToMap <$> q "SELECT `item_template`.`entry`, `item_enchantment_template`.`ench`, `item_enchantment_template`.`chance` FROM `item_enchantment_template`,`item_template` WHERE `item_template`.`RandomSuffix` = `item_enchantment_template`.`entry`"
+sqlSources :: SQLSources
+sqlSources = SQLSources sqlItems sqlSuffixes sqlDisenchants gameObjects
 
-queryI2p :: IO (M.IntMap [(PropertyId, Float)])
-queryI2p =
-    queryToMap <$> q "SELECT `item_template`.`entry`, `item_enchantment_template`.`ench`, `item_enchantment_template`.`chance` FROM `item_enchantment_template`,`item_template` WHERE `item_template`.`RandomProperty` = `item_enchantment_template`.`entry`"
+creatures :: IntMap Creature
+creatures = $(serIn "creatures.gz")
 
-queryToMap res =
-    let f xs [] = [(fs$ xs!!0, [(fs$ xs!!1, ffs$ xs!!2)])]
-        f xs ((j,ys):zs) = 
-            let i = fs (xs!!0)
-                x = fs (xs!!1)
-                c = ffs (xs!!2)
-            in if i == j then (j,(x,c):ys):zs else (i,[(x,c)]):(j,ys):zs
-    in M.fromList $ L.foldr f [] res
+gameObjects :: IntMap GameObject
+gameObjects = $(serIn "gameObjects.gz")
 
-queryGameObjects :: IO GameObjects
-queryGameObjects = do
-    q' <- q "SELECT `entry`,`name`,`position_x`,`position_y`,`position_z`,`map` FROM `gameobject`,`gameobject_template` WHERE `id` = `entry` ORDER BY `entry`"
-    return (getGO <$> q') where
-        getGO q =
-            let i = fs (q!!0)
-                n = (\(MySQLText t) -> encodeUtf8 t) (q!!1)
-                [x,y,z] = ffs <$> [q!!2, q!!3, q!!4]
-                m = fs (q!!5)
-            in GameObject i n (Point x y z m)
-                
+maps :: Maps
+maps = Maps suffixMap
+
+items :: IntMap Item
+items = $(serIn "items.gz")
+
+suffixMap :: SuffixMap
+suffixMap = $(serIn "suffixMap.gz")
+
+spells :: IntMap Spell
+spells = $(serIn "spells.gz")
+
+dbcSuffixes :: IntMap DBCSuffix 
+dbcSuffixes = $(serIn "dbcSuffixes.gz")
+
+dbcProperties :: IntMap DBCProperty
+dbcProperties = $(serIn "dbcProperties.gz")
+
+dbcEnchantments :: IntMap DBCEnchantment
+dbcEnchantments = $(serIn "dbcEnchantments.gz")
+
+sqlItems :: IntMap SQLItem
+sqlItems = $(serIn "sqlItems.gz")
+
+sqlSuffixes :: IntMap SQLSuffix
+sqlSuffixes = $(serIn "sqlSuffixes.gz")
+
+sqlDisenchants :: IntMap SQLDisenchant
+sqlDisenchants = $(serIn "sqlDisenchants.gz")
+
 
 instance Serialize Text where
     put txt = put $ encodeUtf8 txt
@@ -109,74 +197,6 @@ instance Serialize Scientific where
 instance Serialize MySQLValue
 
 seq' x = seq x x
-
-enc :: Serialize a => a -> ByteString
-enc = BL.toStrict . compress . encodeLazy 
-
-dec' :: Serialize a => String -> a
-dec' str = seq ret ret where ret = dec $ BLC.pack str
-
-saveComp :: Serialize a => FilePath -> [String] -> String -> a -> IO ()
-saveComp file imps var e = let varname = (L.head $ L.words var) in Prelude.writeFile (file ++ ".hs") $
-                          "module " ++ file ++ " where\n" ++
-                          "import Data.Serialize\n" ++
-                          "import Codec.Compression.GZip\n\n" ++
-                          (foldMap (\s -> s ++ "\n") imps) ++ "\n" ++
-                          (if "::" `L.isInfixOf` var then var else "") ++ "\n" ++
-                          "" ++ varname ++ " = either error id $ decodeLazy $ decompress $ "
-                          ++ (show $ compress $ encodeLazy e) ++ "\n" ++
-                          "{-# INLINE " ++ varname ++ " #-}"
-
-saveCompItems :: M.IntMap Item -> IO ()
-saveCompItems = saveComp "Raw_items" ["import Data.IntMap", "import Types"] "raw_items :: IntMap Item"
-
-saveResult :: FilePath -> [[MySQLValue]] -> IO ()
-saveResult file res = BL.writeFile file $ compress $ encodeLazy res
-
-loadResult :: FilePath -> IO [[MySQLValue]]
-loadResult file = either error id . decodeLazy . decompress <$> BL.readFile file
-
-loadQuests :: IO (M.IntMap Quest)
-loadQuests = load "quests.gz"
-
-saveQuests :: M.IntMap Quest -> IO ()
-saveQuests = save "quests.gz"
-
-loadSpells :: IO (M.IntMap Spell)
-loadSpells = load "spells.gz"
-
-saveSpells :: M.IntMap Spell -> IO ()
-saveSpells sp = save "spells.gz" sp
-
-saveSuffixes :: M.IntMap DBCSuffix -> IO ()
-saveSuffixes = save "suffixes.gz"
-
-loadSuffixes :: IO (M.IntMap DBCSuffix)
-loadSuffixes = load "suffixes.gz"
-
-saveProperties :: M.IntMap DBCProperty -> IO ()
-saveProperties = save "properties.gz"
-
-loadProperties :: IO (M.IntMap DBCProperty)
-loadProperties = load "properties.gz"
-
-saveSuffixMap :: SuffixMap -> IO ()
-saveSuffixMap = save "suffixMap.gz"
-
-loadSuffixMap :: IO SuffixMap
-loadSuffixMap = load "suffixMap.gz"
-
-saveGameObjects :: GameObjects -> IO ()
-saveGameObjects = save "gameobjects.gz"
-
-loadGameObjects :: IO GameObjects
-loadGameObjects = load "gameobjects.gz"
-
-loadItems :: IO (M.IntMap Item)
-loadItems = load "items.gz"
-
-saveItems :: M.IntMap Item -> IO ()
-saveItems is = save "items.gz" is
 
 getQuest :: [MySQLValue] -> Quest
 getQuest e =
@@ -210,13 +230,6 @@ getItemSpells e = do
     else
         []
                     
-getSuffix :: M.IntMap Spell -> ByteString -> Float -> [(Stat, Int)] -> [SpellId] -> Suffix
-getSuffix ss su ch st sl = Suffix su ch $ st ++ do
-    sid <- sl
-    maybeToList $ do
-        sp <- M.lookup (fromIntegral sid) ss
-        getSpellStats sp
-
 groupSuffixes :: [Suffix] -> [Suffix]
 groupSuffixes xs = do
     (suf, s) <- group' $ (\s' -> (su_suffix s', s')) <$> xs
@@ -225,7 +238,7 @@ groupSuffixes xs = do
         mergeChances ss = 100 - 100*(L.product $ (/100) . (100-) <$> su_chance <$> ss)
         maxStats ss = (\(a,b) -> (a, L.maximum b)) <$> group' (L.sort $ foldMap su_stats ss)
 
-getSuffixMap :: Mappings -> SuffixMap
+-- getSuffixMap :: Mappings -> SuffixMap
 getSuffixMap m = M.fromList $ L.concat $
     [ do
         (k, ps) <- M.toList i2s
