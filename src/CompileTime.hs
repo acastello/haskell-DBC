@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Serialized where
+module CompileTime where
 
 import qualified Data.ByteString.Char8 as B
 import Language.Haskell.TH
@@ -19,5 +19,3 @@ serIn fp = do
             return ""
     return $ AppE (VarE $ mkName "dec'") (LitE (StringL $ B.unpack s))
 
-loadIn :: Make a => a -> Q Exp
-loadIn = serIn . file 

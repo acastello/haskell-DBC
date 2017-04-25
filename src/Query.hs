@@ -19,7 +19,6 @@ import Core
 import Source
 import Geometry
 import OpenGL
-import Serialized
 
 type C a b c = (b -> c) -> a -> c
 

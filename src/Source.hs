@@ -35,7 +35,7 @@ import GHC.Generics
 import qualified System.IO.Streams as S
 
 import Core
-import Serialized
+import CompileTime
 
 data DBCSources = DBCSources
     { dbcs_spells     :: IntMap Spell
