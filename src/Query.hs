@@ -98,8 +98,9 @@ by_go_dist    = \p -> by_ (dist p . go_point)
 by_sp_id      = by_ sp_id
 by_sp_reag    = by_ sp_reag
 by_sp_prod    = by_ sp_prod
-by_sp_disen   = by_ 
-    $ \s -> do
+by_sp_disen   = by_ sp_disen
+
+sp_disen s = do 
         (iid, quant) <- sp_prod s
         maybe [] id $ do
             it <- M.lookup iid items
