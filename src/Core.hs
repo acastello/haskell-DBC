@@ -38,7 +38,7 @@ import DBC
 import SQL
 
 data Mappings = Mappings
-    { m_spells    :: M.IntMap Spell
+    { m_spells    :: M.IntMap DBCSpell
     , m_quests    :: M.IntMap Quest
     , m_i2s       :: M.IntMap [(SuffixId, Float)]
     , m_i2p       :: M.IntMap [(PropertyId, Float)]
@@ -245,26 +245,43 @@ instance Show Item where
     -- slot rlevel
     -- stats
 
+data DBCCastTime = DBCCastTime
+    { ct_id     :: Int
+    , ct_time   :: Double
+    } deriving (Show, Generic)
+instance Serialize DBCCastTime
+
+instance DBCItem DBCCastTime where
+    cast = liftM2 DBCCastTime (castAt 0) ((/1000) . fi <$> castW32At 1)
+
+instance DBCFile DBCCastTime where
+    dbcIndex = ct_id
+    dbcFile _ = "SpellCastTimes.dbc"
+
+instance Make (IntMap DBCCastTime) where
+    file _ = "dbcCastTimes.gz"
+    make = makeDBC
+
 type SpellId = Int
 
-data Spell = Spell
-    { sp_id     :: SpellId
-    , sp_val    :: Int32
-    , sp_scho   :: Word32
-    , sp_scho2  :: Word32
-    , sp_reag   :: [(ItemId, Int)]
-    , sp_prod   :: [(ItemId, Double)]
-    , sp_name   :: ByteString
-    , sp_desc   :: ByteString
+data DBCSpell = DBCSpell
+    { dbcsp_id     :: SpellId
+    , dbcsp_val    :: Int32
+    , dbcsp_scho   :: Word32
+    , dbcsp_scho2  :: Word32
+    , dbcsp_reag   :: [(ItemId, Int)]
+    , dbcsp_prod   :: [(ItemId, Double)]
+    , dbcsp_name   :: ByteString
+    , dbcsp_desc   :: ByteString
     } deriving (Show, Generic)
-instance Serialize Spell where
-instance NFData Spell where
+instance Serialize DBCSpell where
+instance NFData DBCSpell where
 
-instance DBCFile Spell where
-    dbcIndex = sp_id
+instance DBCFile DBCSpell where
+    dbcIndex = dbcsp_id
     dbcFile _ = "Spell.dbc"
 
-instance DBCItem Spell where
+instance DBCItem DBCSpell where
     cast = do
         id <- (fi :: Word32 -> Int) <$> castAt 0
         n <- (+1) <$> castAt 80
@@ -283,14 +300,14 @@ instance DBCItem Spell where
               (fmap (\x -> (1 + fi x)/2) . (castAt :: Int -> DBCGet Word32)) 
               [74..76]
             return $ L.zip ids (L.zipWith (+) dice quants)
-        return $ Spell id n t1 t2 reag prod name
+        return $ DBCSpell id n t1 t2 reag prod name
             (replaceSubstring "$s1" (pack $ show n) desc)
 
-instance Make (IntMap Spell) where
-    file _ = "spells.gz"
+instance Make (IntMap DBCSpell) where
+    file _ = "dbcSpells.gz"
     make = makeDBC
 
--- instance Gettable Spell where
+-- instance Gettable DBCSpell where
 --     get' strs = do
 --         id <- get' strs
 --         skip (4*79)
@@ -301,7 +318,7 @@ instance Make (IntMap Spell) where
 --         t2 <- get' strs
 --         skip (4*59)
 --         desc <- get' strs
---         return $ Spell id (n+1) (t1,t2) (replaceSubstring "$s1" (pack $ show (n+1)) desc)
+--         return $ DBCSpell id (n+1) (t1,t2) (replaceSubstring "$s1" (pack $ show (n+1)) desc)
 
 data Quest = Quest 
     { qt_id     :: Int
@@ -443,7 +460,7 @@ instance Show Suffix where
 
 type SuffixMap = Ma.Map (Either SuffixId PropertyId) [Suffix]
 
-getSuffix :: M.IntMap Spell -> ByteString -> Float -> [(Stat, Int)] -> [SpellId] -> Suffix
+getSuffix :: M.IntMap DBCSpell -> ByteString -> Float -> [(Stat, Int)] -> [SpellId] -> Suffix
 getSuffix ss su ch st sl = Suffix su ch $ st ++ do
     sid <- sl
     maybeToList $ do
@@ -572,9 +589,9 @@ instance Make (IntMap SQLDisenchant) where
     file _ = "sqlDisenchants.gz"
     make = makeSQL
 
-getSpellStats :: Spell -> Maybe (Stat,Int)
-getSpellStats sp = (\i -> (i, fromIntegral $ sp_val sp)) <$> 
-  case (sp_scho sp, sp_scho2 sp) of
+getSpellStats :: DBCSpell -> Maybe (Stat,Int)
+getSpellStats sp = (\i -> (i, fromIntegral $ dbcsp_val sp)) <$> 
+  case (dbcsp_scho sp, dbcsp_scho2 sp) of
     (135,126) -> Just SpellPower
     (13, n)   
       | L.any (==n) [2,4,8,16,32,64,126] -> Just SpellPower

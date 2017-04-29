@@ -38,7 +38,8 @@ import Core
 import CompileTime
 
 data DBCSources = DBCSources
-    { dbcs_spells     :: IntMap Spell
+    { dbcs_spells     :: IntMap DBCSpell
+    , dbcs_casttimes  :: IntMap DBCCastTime
     , dbcs_suffixes   :: IntMap DBCSuffix
     , dbcs_properties :: IntMap DBCProperty
     , dbcs_enchants   :: IntMap DBCEnchantment
@@ -47,9 +48,10 @@ instance Serialize DBCSources
 
 instance Make DBCSources where
     file = undefined
-    make = liftM4 DBCSources make make make make
-    load' = liftM4 DBCSources load' load' load' load'
-    save' (DBCSources a b c d) = save' a >> save' b >> save' c >> save' d
+    make = liftM5 DBCSources make make make make make
+    load' = liftM5 DBCSources load' load' load' load' load'
+    save' (DBCSources a b c d e) = 
+        save' a >> save' b >> save' c >> save' d >> save' e
 
 data SQLSources = SQLSources
     { sqls_items      :: IntMap SQLItem
@@ -116,7 +118,7 @@ makeItem dbc sql maps it = Item
     (sqlit_id it) (sqlit_name it) desc (sqlit_level it) (sqlit_qual it)
     (sqlit_mat it) (sqlit_slot it) (sqlit_rlevel it) stats suffs dislv disens
       where
-        desc = "" -- foldMap (B.append "\n") (sp_desc <$> 
+        desc = "" -- foldMap (B.append "\n") (dbcsp_desc <$> 
         stats = (sqlit_stats it) -- ++ getSpellStats <$> (
         suffs = maybe [] L.concat $ do
             suid <- sqlit_suffs it
@@ -132,7 +134,7 @@ makeItem dbc sql maps it = Item
 -- sourced, serialized data
 
 dbcSources :: DBCSources
-dbcSources = DBCSources spells dbcSuffixes dbcProperties dbcEnchantments
+dbcSources = DBCSources dbcSpells dbcCastTimes dbcSuffixes dbcProperties dbcEnchantments
 
 sqlSources :: SQLSources
 sqlSources = SQLSources sqlItems sqlSuffixes sqlDisenchants gameObjects
@@ -152,8 +154,11 @@ items = $(serIn "items.gz")
 suffixMap :: SuffixMap
 suffixMap = $(serIn "suffixMap.gz")
 
-spells :: IntMap Spell
-spells = $(serIn "spells.gz")
+dbcSpells :: IntMap DBCSpell
+dbcSpells = $(serIn "dbcSpells.gz")
+
+dbcCastTimes :: IntMap DBCCastTime
+dbcCastTimes = $(serIn "dbcCastTimes.gz")
 
 dbcSuffixes :: IntMap DBCSuffix 
 dbcSuffixes = $(serIn "dbcSuffixes.gz")
@@ -303,7 +308,7 @@ getSuffixMap m = M.fromList $ L.concat $
 --         ispells = getItemSpells e
 --         ispells' = catMaybes $ flip M.lookup (m_spells m) <$> ispells
 --         istats' = catMaybes $ getSpellStats <$> ispells'
---     in Item iid iname (foldMap (B.append "\n") (sp_desc <$> ispells')) iqual 
+--     in Item iid iname (foldMap (B.append "\n") (dbcsp_desc <$> ispells')) iqual 
 --             ilevel imat islot (istats++istats') isuffs rlevel
 
 

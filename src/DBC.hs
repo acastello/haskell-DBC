@@ -64,6 +64,12 @@ takeBytes n = do
 class DBCItem a where
     cast :: DBCGet a
 
+instance (DBCItem a, DBCItem b) => DBCItem (a,b) where
+    cast = liftM2 (,) cast cast
+
+instance (DBCItem a, DBCItem b, DBCItem c) => DBCItem (a,b,c) where
+    cast = liftM3 (,,) cast cast cast
+
 class DBCItem a => DBCFile a where
     dbcFile   :: a -> FilePath
     dbcIndex  :: a -> Int
