@@ -1,7 +1,10 @@
 {-# LANGUAGE  OverloadedStrings
             , StandaloneDeriving
             , DeriveGeneric
-            , FlexibleInstances #-}
+            , FlexibleInstances
+            , FlexibleContexts
+            , DefaultSignatures
+            , TypeOperators #-}
 
 module Core
     ( module Core
@@ -37,20 +40,10 @@ import Text.Printf (printf)
 import DBC
 import SQL
 
-data Mappings = Mappings
-    { m_spells    :: M.IntMap DBCSpell
-    , m_quests    :: M.IntMap Quest
-    , m_i2s       :: M.IntMap [(SuffixId, Float)]
-    , m_i2p       :: M.IntMap [(PropertyId, Float)]
-    , m_suffixes  :: M.IntMap DBCSuffix
-    , m_props     :: M.IntMap DBCProperty
-    , m_enchs     :: M.IntMap DBCEnchantment
-    , m_sufmap    :: SuffixMap
-    }
-
 class Serialize a => Make a where
     make  :: IO a
     file  :: a -> FilePath
+    file = undefined
     save' :: a -> IO ()
     save' e = save (file e) e
     load' :: IO a
@@ -163,6 +156,7 @@ data SQLItem = SQLItem
     , sqlit_mat     :: Material
     , sqlit_slot    :: Slot
     , sqlit_rlevel  :: Level
+    , sqlit_price   :: Int
     , sqlit_stats   :: [(Stat, Int)]
     , sqlit_suffs   :: Maybe SuffixId
     , sqlit_props   :: Maybe PropertyId
@@ -174,7 +168,7 @@ instance NFData SQLItem
 instance SQL SQLItem where
     queryText = \_ -> simpleSelect "item_template"
       [ "entry", "name", "ItemLevel", "Quality", "Material", "InventoryType"
-      , "RequiredLevel"
+      , "RequiredLevel", "SellPrice"
       -- stat count, up to 10
       , "StatsCount"
       -- stat types
@@ -194,20 +188,21 @@ instance SQL SQLItem where
         mat     <- toEnum <$> sql_fi 4
         slot    <- toEnum <$> sql_fi 5
         rlevel  <- sql_fi 6
-        n       <- sql_fi 7
-        stnames <- mapM (fmap toEnum . sql_fi) [8..17]
-        stvals  <- mapM sql_fi [18..27]
+        price   <- sql_fi 7
+        n       <- sql_fi 8
+        stnames <- mapM (fmap toEnum . sql_fi) [9..18]
+        stvals  <- mapM sql_fi [19..28]
         let stats = L.take n $ L.zip stnames stvals
-        suffs   <- maybe0 <$> sql_fi 28
-        props   <- maybe0 <$> sql_fi 29
-        disenlv <- sql_fi 30
-        disenid <- sql_fi 31
+        suffs   <- maybe0 <$> sql_fi 29
+        props   <- maybe0 <$> sql_fi 30
+        disenlv <- sql_fi 31
+        disenid <- sql_fi 32
         let disen = 
               if disenlv /= -1 && disenid > 0 then 
                   Just (disenlv, disenid) 
               else 
                   Nothing
-        return $ SQLItem id name level qual mat slot rlevel stats suffs props disen
+        return $ SQLItem id name level qual mat slot rlevel price stats suffs props disen
     finalResult = index' sqlit_id
 
 instance Make (IntMap SQLItem) where
@@ -245,9 +240,26 @@ instance Show Item where
     -- slot rlevel
     -- stats
 
+data DBCDisplayInfo = DBCDisplayInfo
+    { dbcdi_id    :: Int
+    , dbcdi_icon  :: ByteString
+    } deriving (Show, Generic)
+instance Serialize DBCDisplayInfo
+
+instance DBCItem DBCDisplayInfo where
+    cast = liftM2 DBCDisplayInfo (castAt 0) (castAt 5)
+
+instance DBCFile DBCDisplayInfo where
+    dbcIndex = dbcdi_id
+    dbcFile _ = "ItemDisplayInfo.dbc"
+
+instance Make (IntMap DBCDisplayInfo) where
+    make = makeDBC
+    file _ = "dbcDisplayInfo.gz"
+
 data DBCCastTime = DBCCastTime
-    { ct_id     :: Int
-    , ct_time   :: Double
+    { dbcct_id      :: Int
+    , dbcct_time    :: Double
     } deriving (Show, Generic)
 instance Serialize DBCCastTime
 
@@ -255,7 +267,7 @@ instance DBCItem DBCCastTime where
     cast = liftM2 DBCCastTime (castAt 0) ((/1000) . fi <$> castW32At 1)
 
 instance DBCFile DBCCastTime where
-    dbcIndex = ct_id
+    dbcIndex = dbcct_id
     dbcFile _ = "SpellCastTimes.dbc"
 
 instance Make (IntMap DBCCastTime) where

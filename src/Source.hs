@@ -40,6 +40,7 @@ import CompileTime
 data DBCSources = DBCSources
     { dbcs_spells     :: IntMap DBCSpell
     , dbcs_casttimes  :: IntMap DBCCastTime
+    -- , dbcs_dpinfo     :: IntMap DBCDisplayInfo
     , dbcs_suffixes   :: IntMap DBCSuffix
     , dbcs_properties :: IntMap DBCProperty
     , dbcs_enchants   :: IntMap DBCEnchantment
@@ -48,8 +49,8 @@ instance Serialize DBCSources
 
 instance Make DBCSources where
     file = undefined
-    make = liftM5 DBCSources make make make make make
-    load' = liftM5 DBCSources load' load' load' load' load'
+    make = $(liftN "make" 5) DBCSources 
+    load' = $(liftN "load'" 5) DBCSources
     save' (DBCSources a b c d e) = 
         save' a >> save' b >> save' c >> save' d >> save' e
 
@@ -242,82 +243,6 @@ groupSuffixes xs = do
         merge nam ss = Suffix nam (mergeChances ss) (maxStats ss)
         mergeChances ss = 100 - 100*(L.product $ (/100) . (100-) <$> su_chance <$> ss)
         maxStats ss = (\(a,b) -> (a, L.maximum b)) <$> group' (L.sort $ foldMap su_stats ss)
-
--- getSuffixMap :: Mappings -> SuffixMap
-getSuffixMap m = M.fromList $ L.concat $
-    [ do
-        (k, ps) <- M.toList i2s
-        let s = do
-            (i,c) <- ps
-            maybeToList $ do
-                si <- M.lookup (fromIntegral i) sm
-                es <- traverse (flip M.lookup em) (fromIntegral <$> dbcsu_enchs si)
-                return $ getSuffix ss (dbcsu_suffix si) c (es >>= dbcen_stats) (es >>= dbcen_spells)
-        return (k, L.reverse $ L.sortOn su_chance $ groupSuffixes s)
-    , do
-        (k, ps) <- M.toList i2p
-        let s = do
-            (i,c) <- ps
-            maybeToList $ do
-                pi <- M.lookup (fromIntegral i) pm
-                es <- traverse (flip M.lookup em) (fromIntegral <$> dbcpo_enchs pi)
-                return $ getSuffix ss (dbcpo_suffix pi) c (es >>= dbcen_stats) (es >>= dbcen_spells)
-        return (k, L.reverse $ L.sortOn su_chance $ groupSuffixes s)
-    ] where 
-        ss = m_spells m
-        i2s = m_i2s m
-        i2p = m_i2p m
-        sm = m_suffixes m
-        pm = m_props m
-        em = m_enchs m
-
---     let map = M.fromList $ flip fmap es $ \[MySQLInt32U i, MySQLInt32U e, MySQLFloat c] -> 
---           (fromIntegral i, (M.lookup (fromIntegral i) (m_suffixes m), M.lookup (fromIntegral i) (m_props m)))
---         f mmt = (\(s, s')
---     (suf,enchs) <- join $ case id of
---         Left i -> case M.lookup (fromIntegral i) map of
---             Just (Just ss, _) -> (se_suffix ss, su_enchs ss)
---             _ -> ([],[])
---         Right i -> case M.lookup (fromIntegral i) map of
---             Just (_, Just ss) -> (pe_suffix ss, pe_enchs ss)
---             _ -> ([],[])
---     in undefined
-
--- getItem :: Mappings -> [MySQLValue] -> Item
--- getItem m e =
---     let iid = fs (e!!0)
---         iname = (\(MySQLText t) -> encodeUtf8 t) (e!!4)
---         iqual = toEnum $ fs (e!!6)
---         islot = toEnum $ fs (e!!12)
---         weaponstats = 
---             if isWeapon islot then 
---                 [(Damage, (fs (e!!50) + fs (e!!51)) `quot` 2), (Speed, fs (e!!63))]
---             else
---                 []
---         imat = toEnum $ fs (e!!108)
---         istats = weaponstats ++ (getMainStats e) ++ (getRes e)
---         isuffs = L.concat $ maybeToList $ M.lookup iid (m_sufmap m)
---         ilevel = fs (e!!15)
---         rlevel = fs (e!!16)
---         iqs = M.filter (\q -> L.any (== iid) (qt_items q)) (m_quests m)
---         reqlevel = if M.null iqs then 
---                       rlevel 
---                     else 
---                       max rlevel (qt_level $ snd $ L.head $ M.toList iqs)
---         reqlevel' = if iqual > Uncommon && reqlevel == 0 then -1 else reqlevel
---         ispells = getItemSpells e
---         ispells' = catMaybes $ flip M.lookup (m_spells m) <$> ispells
---         istats' = catMaybes $ getSpellStats <$> ispells'
---     in Item iid iname (foldMap (B.append "\n") (dbcsp_desc <$> ispells')) iqual 
---             ilevel imat islot (istats++istats') isuffs rlevel
-
-
--- getItems :: IO (M.IntMap Item)
--- getItems = do
-    -- irs <- evaluate =<< loadResult "item_template.gz"
-    -- m <- loadMappings
-    -- let ret = M.fromList $ fmap (\x -> (iid x, x)) $ getItem m <$> irs
-    -- deepseq ret (return ret)
 
 
 just :: (Eq a, Num a) => a -> Maybe a
