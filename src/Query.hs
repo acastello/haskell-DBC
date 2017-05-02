@@ -1,7 +1,18 @@
-{-# LANGUAGE MultiParamTypeClasses, ExistentialQuantification, TypeFamilies #-}
-{-# LANGUAGE FlexibleInstances, TemplateHaskell #-}
+{-# LANGUAGE 
+    MultiParamTypeClasses
+  , ExistentialQuantification
+  , TypeFamilies 
+  , FlexibleInstances
+  , TemplateHaskell
+  , TypeSynonymInstances #-}
 
-module Query where
+module Query 
+  ( module Query 
+  , module Core 
+  , module Source 
+  , M.IntMap, M.size, M.lookup
+  , printf
+  ) where
 
 import Control.Concurrent
 import Control.Monad
@@ -10,10 +21,13 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.IntMap as M
 import qualified Data.Map as Ma
 import qualified Data.List as L
+import Data.String
 import Data.Word
 
 import System.IO.Unsafe
 import System.Process (callCommand)
+
+import Text.Printf
 
 import Core
 import Source
@@ -80,6 +94,9 @@ by_it_desc = by_ it_desc
 by_it_score tab = by_ (\i -> score tab (it_stats i) 
                (su_stats <$> L.filter (\s -> su_chance s > 2) (it_suffs i)))
 
+instance IsString Item where
+    fromString str = last $ toList' $ filters [by_it_name (== B.pack str)] items
+
 -- suffix getters
 -- by_se_id = by_ se_id
 -- by_se_val = by_ se_val
@@ -99,6 +116,22 @@ by_sp_id      = by_ sp_id
 by_sp_reag    = by_ sp_reag
 by_sp_prod    = by_ sp_prod
 by_sp_disen   = by_ sp_disen
+
+instance IsString Spell where
+    fromString str = last $ toList' $ filters [by_ sp_name (== B.pack str)] spells
+
+sp_pratio :: Spell -> Double
+sp_pratio s = pprod / preag where
+    preag = sum $ fmap (\(id, n) -> 
+            fi n * (maybe 0 (fi . it_price) (M.lookup id items))) (sp_reag s)
+    pprod = sum $ fmap (\(id, n) -> 
+            n * (maybe 0 (fi . it_price) (M.lookup id items))) (sp_prod s)
+
+sp_pratio' :: [(ItemId, Double)] -> Spell -> Double
+sp_pratio' ws s = pprod / wei where
+    pprod = sum $ fmap (\(id, n) ->
+            n * (maybe 0 (fi . it_price) (M.lookup id items))) (sp_prod s)
+    wei = weight ws (sp_reag s)
 
 sp_disen s = do 
         (iid, quant) <- sp_prod s
@@ -120,6 +153,9 @@ weight xs ys = sum $ do
         return (any2d wei * any2d amo)
     else
         return 0
+
+eff :: (a -> Double) -> (a -> Double) -> a -> Double
+eff = liftM2 (/)
 
 -- efficiency xs ys e = 
 
@@ -210,8 +246,11 @@ any2d = fromRational . toRational
 
 showItId id = maybe "" show (M.lookup id items)
 
-itId :: B.ByteString -> ItemId
-itId name = it_id $ head $ toList' $ filters [by_it_name (== name)] items
+i :: B.ByteString -> ItemId
+i name = it_id $ head $ toList' $ filters [by_it_name (== name)] items
+
+s :: B.ByteString -> SpellId
+s name = sp_id $ head $ toList' $ filters [by_ sp_name (== name)] spells
 
 instance Bidimensional Point where
     vert Point { p_x = x, p_y = y } = vertex $ Vertex2 (-y) x

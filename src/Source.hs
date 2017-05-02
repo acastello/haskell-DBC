@@ -21,6 +21,7 @@ import qualified Data.Map as Ma
 import Data.Maybe
 import Data.Scientific
 import Data.Serialize
+import Data.String
 import Data.Text
 import Data.Text.Encoding
 import Data.Time
@@ -40,7 +41,7 @@ import CompileTime
 data DBCSources = DBCSources
     { dbcs_spells     :: IntMap DBCSpell
     , dbcs_casttimes  :: IntMap DBCCastTime
-    -- , dbcs_dpinfo     :: IntMap DBCDisplayInfo
+    , dbcs_dpinfo     :: IntMap DBCDisplayInfo
     , dbcs_suffixes   :: IntMap DBCSuffix
     , dbcs_properties :: IntMap DBCProperty
     , dbcs_enchants   :: IntMap DBCEnchantment
@@ -49,10 +50,10 @@ instance Serialize DBCSources
 
 instance Make DBCSources where
     file = undefined
-    make = $(liftN "make" 5) DBCSources 
-    load' = $(liftN "load'" 5) DBCSources
-    save' (DBCSources a b c d e) = 
-        save' a >> save' b >> save' c >> save' d >> save' e
+    make = $(liftN "make" 6) DBCSources 
+    load' = $(liftN "load'" 6) DBCSources
+    save' (DBCSources a b c d e f) = 
+        save' a >> save' b >> save' c >> save' d >> save' e >> save' f
 
 data SQLSources = SQLSources
     { sqls_items      :: IntMap SQLItem
@@ -64,8 +65,8 @@ instance Serialize SQLSources
 
 instance Make SQLSources where
     file _ = undefined
-    make = liftM4 SQLSources make make make make
-    load' = liftM4 SQLSources load' load' load' load'
+    make = $(liftN "make" 4) SQLSources
+    load' = $(liftN "load'" 4) SQLSources 
     save' (SQLSources a b c d) = save' a >> save' b >> save' c >> save' d
 
 data Maps = Maps
@@ -81,15 +82,18 @@ instance Make Maps where
 
 data FinalData = FinalData
     { final_items     :: IntMap Item
+    , final_spells    :: IntMap Spell
     } deriving Generic
 instance Serialize FinalData
 
 instance Make FinalData where
-    file = undefined
-    make = liftM FinalData make
-    load' = liftM FinalData load'
-    save' (FinalData a) = save' a
+    make = $(liftN "make" 2) FinalData
+    load' = $(liftN "load'" 2) FinalData
+    save' (FinalData a b) = save' a >> save' b
 
+instance Make (IntMap Spell) where
+    file _ = "spells.gz"
+    make = return $ fmap (makeSpell dbcSources sqlSources maps) (dbcs_spells dbcSources)
 
 instance Make SuffixMap where
     file _ = "suffixMap.gz"
@@ -117,7 +121,8 @@ instance Make (IntMap Item) where
 makeItem :: DBCSources -> SQLSources -> Maps -> SQLItem -> Item
 makeItem dbc sql maps it = Item
     (sqlit_id it) (sqlit_name it) desc (sqlit_level it) (sqlit_qual it)
-    (sqlit_mat it) (sqlit_slot it) (sqlit_rlevel it) stats suffs dislv disens
+    (sqlit_mat it) (sqlit_slot it) (sqlit_rlevel it) (sqlit_price it) stats 
+    suffs dislv disens
       where
         desc = "" -- foldMap (B.append "\n") (dbcsp_desc <$> 
         stats = (sqlit_stats it) -- ++ getSpellStats <$> (
@@ -132,13 +137,25 @@ makeItem dbc sql maps it = Item
             encs <- M.lookup id (sqls_disench sql)
             return (lv, sqldis_drops encs)
 
+makeSpell :: DBCSources -> SQLSources -> Maps -> DBCSpell -> Spell
+makeSpell dbc sql maps sp = Spell
+    (dbcsp_id sp) (dbcsp_val sp) (dbcsp_scho sp) (dbcsp_scho2 sp) 
+    (dbcsp_reag sp) (dbcsp_prod sp) (dbcsp_name sp) (dbcsp_desc sp) 
+    (maybe 0 dbcct_time $ M.lookup (dbcsp_castid sp) (dbcs_casttimes dbc))
+
 -- sourced, serialized data
 
 dbcSources :: DBCSources
-dbcSources = DBCSources dbcSpells dbcCastTimes dbcSuffixes dbcProperties dbcEnchantments
+dbcSources = DBCSources dbcSpells dbcCastTimes dbcDisplayInfo dbcSuffixes dbcProperties dbcEnchantments
 
 sqlSources :: SQLSources
 sqlSources = SQLSources sqlItems sqlSuffixes sqlDisenchants gameObjects
+
+maps :: Maps
+maps = Maps suffixMap
+
+finals :: FinalData
+finals = FinalData items spells
 
 creatures :: IntMap Creature
 creatures = $(serIn "creatures.gz")
@@ -146,11 +163,11 @@ creatures = $(serIn "creatures.gz")
 gameObjects :: IntMap GameObject
 gameObjects = $(serIn "gameObjects.gz")
 
-maps :: Maps
-maps = Maps suffixMap
-
 items :: IntMap Item
 items = $(serIn "items.gz")
+
+spells :: IntMap Spell
+spells = $(serIn "spells.gz")
 
 suffixMap :: SuffixMap
 suffixMap = $(serIn "suffixMap.gz")
@@ -160,6 +177,9 @@ dbcSpells = $(serIn "dbcSpells.gz")
 
 dbcCastTimes :: IntMap DBCCastTime
 dbcCastTimes = $(serIn "dbcCastTimes.gz")
+
+dbcDisplayInfo :: IntMap DBCDisplayInfo
+dbcDisplayInfo = $(serIn "dbcDisplayInfo.gz")
 
 dbcSuffixes :: IntMap DBCSuffix 
 dbcSuffixes = $(serIn "dbcSuffixes.gz")
@@ -277,3 +297,12 @@ group' xs = do
     xs' <- L.groupBy (\a b -> fst a == fst b) xs
     let k = fst $ L.head xs'
     return (k, snd <$> xs')
+
+liftM6 fun a b c d e f = do
+    a' <- a
+    b' <- b
+    c' <- c
+    d' <- d
+    e' <- e
+    f' <- f
+    return $ fun a' b' c' d' e' f'

@@ -218,6 +218,7 @@ data Item = Item
     , it_mat    :: Material
     , it_slot   :: Slot
     , it_rlevel :: Level
+    , it_price  :: Int
     , it_stats  :: [(Stat, Int)] 
     , it_suffs  :: [Suffix]
     , it_disenlv:: Maybe Int
@@ -277,14 +278,15 @@ instance Make (IntMap DBCCastTime) where
 type SpellId = Int
 
 data DBCSpell = DBCSpell
-    { dbcsp_id     :: SpellId
-    , dbcsp_val    :: Int32
-    , dbcsp_scho   :: Word32
-    , dbcsp_scho2  :: Word32
-    , dbcsp_reag   :: [(ItemId, Int)]
-    , dbcsp_prod   :: [(ItemId, Double)]
-    , dbcsp_name   :: ByteString
-    , dbcsp_desc   :: ByteString
+    { dbcsp_id      :: SpellId
+    , dbcsp_val     :: Int32
+    , dbcsp_scho    :: Word32
+    , dbcsp_scho2   :: Word32
+    , dbcsp_reag    :: [(ItemId, Int)]
+    , dbcsp_prod    :: [(ItemId, Double)]
+    , dbcsp_name    :: ByteString
+    , dbcsp_desc    :: ByteString
+    , dbcsp_castid  :: Int
     } deriving (Show, Generic)
 instance Serialize DBCSpell where
 instance NFData DBCSpell where
@@ -296,6 +298,7 @@ instance DBCFile DBCSpell where
 instance DBCItem DBCSpell where
     cast = do
         id <- (fi :: Word32 -> Int) <$> castAt 0
+        castid <- castAt 28
         n <- (+1) <$> castAt 80
         t1 <- castAt 95
         t2 <- castAt 110
@@ -313,11 +316,24 @@ instance DBCItem DBCSpell where
               [74..76]
             return $ L.zip ids (L.zipWith (+) dice quants)
         return $ DBCSpell id n t1 t2 reag prod name
-            (replaceSubstring "$s1" (pack $ show n) desc)
+            (replaceSubstring "$s1" (pack $ show n) desc) castid
 
 instance Make (IntMap DBCSpell) where
     file _ = "dbcSpells.gz"
     make = makeDBC
+
+data Spell = Spell
+    { sp_id     :: SpellId
+    , sp_val    :: Int32
+    , sp_scho   :: Word32
+    , sp_scho2  :: Word32
+    , sp_reag   :: [(ItemId, Int)]
+    , sp_prod   :: [(ItemId, Double)]
+    , sp_name   :: ByteString
+    , sp_desc   :: ByteString
+    , sp_cast   :: Double
+    } deriving (Show, Generic)
+instance Serialize Spell
 
 -- instance Gettable DBCSpell where
 --     get' strs = do
