@@ -18,6 +18,7 @@ import Control.Concurrent
 import Control.Monad
 
 import qualified Data.ByteString.Char8 as B
+import Data.Function
 import qualified Data.IntMap as M
 import qualified Data.Map as Ma
 import qualified Data.List as L
@@ -68,6 +69,9 @@ takes = L.take
 groups :: (Listable f, Eq b) => C a b b -> f a -> [(b,[a])]
 groups f = fmap (\xs -> (f id (head xs), xs)) .
            L.groupBy (\a b -> f id a == f id b) . toList' 
+
+groups' :: (Listable f, Eq b, Ord b) => C a b b -> f a -> [(b, [a])]
+groups' f = groups f . sorts f
 
 like :: B.ByteString -> B.ByteString -> Bool
 like = B.isInfixOf
@@ -174,6 +178,9 @@ is_herb id = any (== id)
   , 181280, 181281, 183043, 183044, 183045, 183046, 185881, 189973, 190169
   , 190170, 190171, 190172, 190173, 190174, 190175, 190176, 191019, 191303 ]
 
+herbs :: M.IntMap GameObject
+herbs = filters [by_go_id is_herb] gameObjects
+
 is_vein id = any (== id) 
   [ 181556, 185557, 189978, 1731, 3763, 2055, 181248, 103713, 165658, 181555
   , 1734, 150080, 181109, 180215, 1610, 1667, 19903, 1735, 181557, 181069
@@ -181,6 +188,9 @@ is_vein id = any (== id)
   , 123309, 181569, 181570, 189979, 189981, 175404, 189980, 1733, 105569
   , 181068, 324, 150082, 176643, 1732, 3764, 2054, 181249, 103711, 191133
   , 2047, 181108, 150081]
+
+veins :: M.IntMap GameObject
+veins = filters [by_go_id is_vein] gameObjects
 
 score :: [(Stat,Double)] -> [(Stat,Int)] -> [[(Stat,Int)]] -> Double
 score tab hay [] = L.sum $ do
@@ -256,6 +266,10 @@ instance Bidimensional Point where
     vert Point { p_x = x, p_y = y } = vertex $ Vertex2 (-y) x
     bounds Point { p_x = x, p_y = y } 
                          = bounds (realToFrac (-y) :: Double, realToFrac x :: Double)
+
+instance Bidimensional GameObject where
+    vert = vert . go_point
+    bounds = bounds . go_point
 
 p2tuple :: Point -> (Float, Float, Float, Word32)
 p2tuple p = (p_x p, p_y p, p_z p, fromIntegral $ p_m p)

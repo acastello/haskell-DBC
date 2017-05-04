@@ -1,10 +1,14 @@
-{-# LANGUAGE FlexibleInstances, ScopedTypeVariables #-}
+{-# LANGUAGE 
+    FlexibleInstances
+  , ScopedTypeVariables 
+  , GADTs #-}
 
 module OpenGL 
   ( vertex
   , Vertex2 (..), Vertex3 (..)
   , Bidimensional (..)
   , Draw (..)
+  , breadth
   , draw
   ) where
 
@@ -24,6 +28,10 @@ instance Vertex a => Vertex [a] where
     vertex = mapM_ vertex
     vertexv = undefined
 
+instance Vertex a => Vertex (M.IntMap a) where
+    vertex = mapM_ vertex
+    vertexv = undefined
+
 class Bidimensional a where
     vert :: a -> IO ()
     bounds :: a -> (Double, Double, Double, Double)
@@ -31,6 +39,9 @@ class Bidimensional a where
 center2 :: Bidimensional a => a -> (Double, Double)
 center2 e = ((x+x')/2, (y+y')/2) where
     (x,y,x',y') = bounds e
+
+breadth xs = max (x' - x) (y' - y) where
+    (x, y, x', y') = bounds xs
 
 instance Bidimensional (Double, Double) where
     vert (x,y) = vertex $ Vertex2 x y
@@ -53,11 +64,24 @@ instance Bidimensional a => Bidimensional (M.IntMap a) where
     vert = mapM_ vert
     bounds = bounds . M.elems
 
-data Draw a = 
-    P { drawEl :: a }
-  | L { drawEl :: a }
+data Draw where
+    P :: Bidimensional a => a -> Draw
+    L :: Bidimensional a => a -> Draw 
 
-renderDraw e = renderPrimitive pm (vert $ drawEl e) where
+drawV (P a) = vert a
+drawV (L a) = vert a
+
+drawB (P a) = bounds a
+drawB (L a) = bounds a
+
+drawC (P a) = center2 a
+drawC (L a) = center2 a
+
+instance Bidimensional Draw where
+    vert  = drawV
+    bounds = drawB
+
+renderDraw e = renderPrimitive pm (drawV e) where
     pm = case e of
         P _ -> Points
         L _ -> LineStrip
@@ -78,12 +102,15 @@ newRefs = do
     rs <- newIORef (100, 100)
     return $ Refs z c p lp rs
 
-draw :: forall a. Bidimensional a => [Draw a] -> IO ()
+draw :: [Draw] -> IO ()
 draw xs = do
     refs <- newRefs
-    center refs $= avg (center2 . drawEl <$> xs)
+    let (x,y) = center2 xs
+    pos refs $= (-x, -y)
+    zoom refs $= 1 / breadth xs
     getArgsAndInitialize
     initialDisplayMode $= [ RGBAMode, DoubleBuffered ]
+    initialWindowSize $= Size 1440 900
     createWindow "OpenGL Canvas"
     reshapeCallback $= Just (reshapeCB refs)
     depthFunc $= Just Less
