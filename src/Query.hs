@@ -10,6 +10,8 @@ module Query
   ( module Query 
   , module Core 
   , module Source 
+  , module OpenGL
+  , module Geometry
   , M.IntMap, M.size, M.lookup
   , printf
   ) where
