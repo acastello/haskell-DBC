@@ -10,6 +10,10 @@ module Core
     ( module Core
     , module DBC
     , module SQL 
+    , IntMap
+    , first
+    , second
+    , bimap
     ) where 
 
 import Codec.Compression.GZip
@@ -22,6 +26,7 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Char8 as BLC
 import Data.Function
+import Data.Bifunctor
 import Data.Int
 import qualified Data.Map as Ma
 import qualified Data.IntMap as M
@@ -97,12 +102,12 @@ data Stat = Mana | HP | Agility | Strength | Intellect | Spirit | Stamina
     | Vitality | SpellPen | BlockValue | Speed | Damage
     | HolyRes | ShadowRes | FireRes | FrostRes | NatureRes | ArcaneRes 
     | UnknownStat Int
-    deriving (Eq, Read, Generic, Ord)
+    deriving (Eq, Read, Generic, Ord, Show)
 instance Serialize Stat
 instance NFData Stat
 
 data Quality = Poor | Common | Uncommon | Rare | Epic | Legendary
-    | Artifact | BtA
+    | Artifact | Heirloom
     deriving (Eq, Ord, Show, Read, Generic)
 instance Serialize Quality
 instance NFData Quality 
@@ -117,7 +122,7 @@ instance Enum Quality where
         4 -> Epic
         5 -> Legendary
         6 -> Artifact
-        7 -> BtA
+        7 -> Heirloom
 
 qualc :: Item -> String
 qualc i = col $ case it_qual i of
@@ -144,6 +149,8 @@ instance Show Faction where
 instance Serialize Faction
 instance NFData Faction
 
+data Bonding = BoP | BoE | BtA 
+
 type ItemId = Int
 type Level = Int
 type ItemLevel = Level
@@ -158,9 +165,12 @@ data SQLItem = SQLItem
     , sqlit_rlevel  :: Level
     , sqlit_price   :: Int
     , sqlit_stats   :: [(Stat, Int)]
+    , sqlit_scaling :: Int
+    , sqlit_spells  :: [SpellId]
     , sqlit_suffs   :: Maybe SuffixId
     , sqlit_props   :: Maybe PropertyId
     , sqlit_disen   :: Maybe (Level, SQLDisenchantId)
+    , sqlit_display :: Int
     } deriving (Generic, Show)
 instance Serialize SQLItem
 instance NFData SQLItem
@@ -179,7 +189,10 @@ instance SQL SQLItem where
       , "stat_value5", "stat_value6", "stat_value7" , "stat_value8"
       , "stat_value9", "stat_value10" 
       
-      , "RandomSuffix", "RandomProperty", "RequiredDisenchantSkill", "DisenchantId" ]
+      , "RandomSuffix", "RandomProperty", "RequiredDisenchantSkill"
+      , "DisenchantId" 
+      , "spellid_1", "spellid_2", "spellid_3", "spellid_4", "spellid_5"
+      , "scalingStatDistribution", "displayid" ]
     fromResult = do
         id      <- sql_fi 0
         name    <- sql_bs 1
@@ -202,7 +215,11 @@ instance SQL SQLItem where
                   Just (disenlv, disenid) 
               else 
                   Nothing
-        return $ SQLItem id name level qual mat slot rlevel price stats suffs props disen
+        spells <- L.filter (/= 0) <$> mapM sql_fi [33,34,35,36,37]
+        scaling <- sql_fi 38
+        dpy <- sql_fi 39
+        return $ SQLItem id name level qual mat slot rlevel price stats scaling
+                          spells suffs props disen dpy
     finalResult = index' sqlit_id
 
 instance Make (IntMap SQLItem) where
@@ -220,9 +237,11 @@ data Item = Item
     , it_rlevel :: Level
     , it_price  :: Int
     , it_stats  :: [(Stat, Int)] 
+    , it_spells :: [SpellId]
     , it_suffs  :: [Suffix]
     , it_disenlv:: Maybe Int
     , it_disen  :: [(ItemId, Double)]
+    , it_icon   :: ByteString
     } deriving Generic
 instance Serialize Item
 instance NFData Item
@@ -358,11 +377,36 @@ data Quest = Quest
 instance Serialize Quest 
 instance NFData Quest 
 
+data DBCScalingStat = DBCScalingStat
+    { dbcss_id      :: Int
+    , dbcss_stats   :: [(Stat, Int)]
+    } deriving (Show, Generic)
+instance Serialize DBCScalingStat
+instance NFData DBCScalingStat
+
+instance DBCFile DBCScalingStat where
+    dbcIndex = dbcss_id
+    dbcFile _ = "ScalingStatDistribution.dbc"
+
+instance DBCItem DBCScalingStat where
+    cast = do
+        id <- fi <$> castWord32
+        stats <- mapM castAt [1..10]
+        vals <- mapM castAt [11..20]
+        let f x y = if x == -1 || y /= 0 then 
+                    Just (toEnum x, y*130`quot`10000) else Nothing
+            pairs = catMaybes $ L.zipWith f stats vals
+        return $ DBCScalingStat id pairs
+
+instance Make (IntMap DBCScalingStat) where
+    file _ = "dbcScalingStats.gz"
+    make = makeDBC
+
 type SuffixId = Int
 data DBCSuffix = DBCSuffix
-    { dbcsu_id     :: SuffixId
-    , dbcsu_suffix :: ByteString
-    , dbcsu_enchs  :: [EnchantmentId]
+    { dbcsu_id      :: SuffixId
+    , dbcsu_suffix  :: ByteString
+    , dbcsu_enchs   :: [EnchantmentId]
     } deriving (Show, Generic)
 instance Serialize DBCSuffix 
 instance NFData DBCSuffix 
@@ -637,41 +681,41 @@ getSpellStats sp = (\i -> (i, fromIntegral $ dbcsp_val sp)) <$>
     (189,16777216)  -> Just ArmorPen
     _ -> Nothing
 
-instance Show Stat where
-    show a = (\s -> "\ESC[1m\STX" ++ s ++ "\ESC[21m\STX") $ case a of
-        Mana      -> "mana"
-        HP        -> "hp"
-        Agility   -> "agi"
-        Strength  -> "str"
-        Intellect -> "int"
-        Spirit    -> "spi"
-        Stamina   -> "sta"
-        Defense   -> "def"
-        Dodge     -> "dge"
-        Parry     -> "par"
-        Block     -> "blk"
-        Crit      -> "crit"
-        Haste     -> "hast"
-        Hit       -> "hit"
-        Expertise -> "exp"
-        ManaPer5  -> "mp5"
-        Resilence -> "resil"
-        AttackPower   -> "attk"
-        HealingPower  -> "heal"
-        SpellPower    -> "sp"
-        BlockValue    -> "blkv"
-        Speed     -> "delay"
-        Damage    -> "dmg"
-        HolyRes   -> "holy-r"
-        ShadowRes -> "shad-r"
-        FireRes   -> "fire-r"
-        FrostRes  -> "fros-r"
-        NatureRes -> "nat-r"
-        ArcaneRes -> "arc-r"
-        ArmorPen  -> "arpen"
-        SpellPen  -> "spen"
-        Vitality  -> "hp5"
-        UnknownStat n -> col [7] ++ "?? " ++ show n
+-- instance Show Stat where
+--     show a = (\s -> col [1] ++ s ++ col [21]) $ case a of
+--         Mana      -> "mana"
+--         HP        -> "hp"
+--         Agility   -> "agi"
+--         Strength  -> "str"
+--         Intellect -> "int"
+--         Spirit    -> "spi"
+--         Stamina   -> "sta"
+--         Defense   -> "def"
+--         Dodge     -> "dge"
+--         Parry     -> "par"
+--         Block     -> "blk"
+--         Crit      -> "crit"
+--         Haste     -> "hast"
+--         Hit       -> "hit"
+--         Expertise -> "exp"
+--         ManaPer5  -> "mp5"
+--         Resilence -> "resil"
+--         AttackPower   -> "attk"
+--         HealingPower  -> "heal"
+--         SpellPower    -> "sp"
+--         BlockValue    -> "blkv"
+--         Speed     -> "delay"
+--         Damage    -> "dmg"
+--         HolyRes   -> "holy-r"
+--         ShadowRes -> "shad-r"
+--         FireRes   -> "fire-r"
+--         FrostRes  -> "fros-r"
+--         NatureRes -> "nat-r"
+--         ArcaneRes -> "arc-r"
+--         ArmorPen  -> "arpen"
+--         SpellPen  -> "spen"
+--         Vitality  -> "hp5"
+--         UnknownStat n -> col [7] ++ "?? " ++ show n ++ col [27]
 
 instance Enum Stat where
     fromEnum = undefined
@@ -785,6 +829,9 @@ load file = dec <$> BL.readFile file
 -- utils
 --
 
+fr :: (Real a, Fractional b) => a -> b
+fr = fromRational . toRational
+
 col [] = col [0]
 col xs = "\ESC[" ++ foldl1 (\s s' -> s ++ ";" ++ s') (show <$> xs) ++ "m\STX"
 
@@ -801,7 +848,16 @@ sample'' = Prelude.putStrLn $ L.unlines $ fmap L.concat $
     numbers = L.concat [[8..29 :: Int]]
     formatting str = (\(b,a) -> b:(if L.null a then [] else formatting a)) (L.splitAt 4 str)
 
-maybe0 i = if i == 0 then Just i else Nothing
+maybe0 i = if i /= 0 then Just i else Nothing
+
+mean xs = sum (fromRational . toRational <$> xs) / fromIntegral (L.length xs)
+
+median xs =
+    if len `mod` 2 == 0 then
+        ((fr $ xs !! (len - 2)) + (fr $ xs !! (len - 1))) / 2
+    else
+        fr $ xs !! (len - 1) where
+            len = L.length xs
 
 index' f = M.fromList . fmap (\e -> (f e, e))
 

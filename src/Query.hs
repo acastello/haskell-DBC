@@ -12,7 +12,7 @@ module Query
   , module Source 
   , module OpenGL
   , module Geometry
-  , M.IntMap, M.size, M.lookup
+  , M.size, M.lookup
   , printf
   ) where
 
@@ -28,6 +28,7 @@ import Data.String
 import Data.Word
 
 import System.IO.Unsafe
+import System.Posix.ByteString (fileExist)
 import System.Process (callCommand)
 
 import Text.Printf
@@ -147,6 +148,10 @@ sp_disen s = do
     
 
 has_reagent rs = by_sp_reag (any ((\e -> any (== e) rs) . fst))
+
+has_product ps = by_sp_prod (any ((\e -> any (== e) ps) . fst))
+
+exists path = fileExist $ mconcat ["/home/alex/src/Extracted wotlk/Interface/ICONS/", path, ".png"]
 
 -- weight :: [a -> Double] -> a -> Double
 -- weight xs a = sum $ ($ a) <$> xs
