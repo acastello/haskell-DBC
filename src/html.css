@@ -2,27 +2,39 @@ body {
     background: #202020 url(img/Background_World.png) no-repeat center center fixed;
 }
 
-header {
-    display: block;
-    width: 80%;
+.header {
+    opacity: 0.8;
+    width: auto;
     margin: 1em;
+    padding: 0 1em;
     border: #181818 2px solid;
     background: #101010;
-    position: relative;
-    left: 10%;
+    top: 0;
 }
 
-header a {
+.header > * {
+    margin: 0.5em;
+}
+
+.header a {
+    margin: 1em;
     padding: 10px;
+    color: #606060;
     border: 1px solid;
     display: inline-block;
+    background: #202020;
+}
+
+.header a:hover {
+    background: #304040;
 }
 
 .tooltip {
     border: 0.5em solid transparent;
     padding: 0.25em;
     border-image: url(img/itemborder.png) 6 fill;
-    display: inline-block;
+    float: left;
+    display: block;
     width: 18em;
 }
 

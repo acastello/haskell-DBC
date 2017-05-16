@@ -48,15 +48,17 @@ data DBCSources = DBCSources
     , dbcs_suffixes   :: IntMap DBCSuffix
     , dbcs_properties :: IntMap DBCProperty
     , dbcs_enchants   :: IntMap DBCEnchantment
+    , dbcs_spellicons :: IntMap DBCSpellIcon
     } deriving Generic
 instance Serialize DBCSources
 
 instance Make DBCSources where
     file = undefined
-    make = $(liftN "make" 7) DBCSources 
-    load' = $(liftN "load'" 7) DBCSources
-    save' (DBCSources a b c d e f g) = 
-        save' a >> save' b >> save' c >> save' d >> save' e >> save' f >> save' g
+    make = $(liftN "make" 8) DBCSources 
+    load' = $(liftN "load'" 8) DBCSources
+    save' (DBCSources a b c d e f g h) = 
+        save' a >> save' b >> save' c >> save' d >> save' e >> save' f 
+        >> save' g >> save' h
 
 data SQLSources = SQLSources
     { sqls_items      :: IntMap SQLItem
@@ -149,14 +151,16 @@ makeItem dbc sql maps it = Item
 
 makeSpell :: DBCSources -> SQLSources -> Maps -> DBCSpell -> Spell
 makeSpell dbc sql maps sp = Spell
-    (dbcsp_id sp) (dbcsp_val sp) (dbcsp_scho sp) (dbcsp_scho2 sp) 
-    (dbcsp_reag sp) (dbcsp_prod sp) (dbcsp_name sp) (dbcsp_desc sp) 
+    (dbcsp_id sp)   (dbcsp_val sp)   (dbcsp_scho sp)   (dbcsp_scho2 sp) 
+    (dbcsp_reag sp)   (dbcsp_prod sp)   (dbcsp_name sp)   (dbcsp_desc sp) 
     (maybe 0 dbcct_time $ M.lookup (dbcsp_castid sp) (dbcs_casttimes dbc))
+    (maybe "INV_Misc_QuestionMark" (BC.map toLower . snd . BC.breakEnd (== '\\') . dbcsi_icon) 
+        $ M.lookup (dbcsp_iconid sp) (dbcs_spellicons dbc))
 
 -- sourced, serialized data
 
 dbcSources :: DBCSources
-dbcSources = DBCSources dbcSpells dbcCastTimes dbcDisplayInfo dbcScalingStats dbcSuffixes dbcProperties dbcEnchantments
+dbcSources = DBCSources dbcSpells dbcCastTimes dbcDisplayInfo dbcScalingStats dbcSuffixes dbcProperties dbcEnchantments dbcSpellIcons
 
 sqlSources :: SQLSources
 sqlSources = SQLSources sqlItems sqlSuffixes sqlDisenchants gameObjects creatures
@@ -202,6 +206,9 @@ dbcProperties = $(serIn "dbcProperties.gz")
 
 dbcEnchantments :: IntMap DBCEnchantment
 dbcEnchantments = $(serIn "dbcEnchantments.gz")
+
+dbcSpellIcons :: IntMap DBCSpellIcon
+dbcSpellIcons = $(serIn "dbcSpellIcons.gz")
 
 sqlItems :: IntMap SQLItem
 sqlItems = $(serIn "sqlItems.gz")
@@ -311,7 +318,7 @@ group' xs = do
     let k = fst $ L.head xs'
     return (k, snd <$> xs')
 
-liftM7 fun a b c d e f g = do
+liftM8 fun a b c d e f g h = do
     a' <- a
     b' <- b
     c' <- c
@@ -319,4 +326,5 @@ liftM7 fun a b c d e f g = do
     e' <- e
     f' <- f
     g' <- g
-    return $ fun a' b' c' d' e' f' g'
+    h' <- h
+    return $ fun a' b' c' d' e' f' g' h'

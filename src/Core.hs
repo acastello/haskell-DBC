@@ -277,6 +277,23 @@ instance Make (IntMap DBCDisplayInfo) where
     make = makeDBC
     file _ = "dbcDisplayInfo.gz"
 
+data DBCSpellIcon = DBCSpellIcon
+    { dbcsi_id      :: Int
+    , dbcsi_icon    :: ByteString
+    } deriving (Show, Generic)
+instance Serialize DBCSpellIcon
+
+instance DBCItem DBCSpellIcon where
+    cast = liftM2 DBCSpellIcon (castAt 0) (castAt 1)
+
+instance DBCFile DBCSpellIcon where
+    dbcIndex = dbcsi_id
+    dbcFile _ = "SpellIcon.dbc"
+
+instance Make (IntMap DBCSpellIcon) where
+    make = makeDBC
+    file _ = "dbcSpellIcons.gz"
+
 data DBCCastTime = DBCCastTime
     { dbcct_id      :: Int
     , dbcct_time    :: Double
@@ -306,6 +323,7 @@ data DBCSpell = DBCSpell
     , dbcsp_name    :: ByteString
     , dbcsp_desc    :: ByteString
     , dbcsp_castid  :: Int
+    , dbcsp_iconid  :: Int
     } deriving (Show, Generic)
 instance Serialize DBCSpell where
 instance NFData DBCSpell where
@@ -321,6 +339,7 @@ instance DBCItem DBCSpell where
         n <- (+1) <$> castAt 80
         t1 <- castAt 95
         t2 <- castAt 110
+        icon <- castAt 133
         name <- castAt 136
         desc <- castAt 170
         reag <- do
@@ -335,7 +354,7 @@ instance DBCItem DBCSpell where
               [74..76]
             return $ L.zip ids (L.zipWith (+) dice quants)
         return $ DBCSpell id n t1 t2 reag prod name
-            (replaceSubstring "$s1" (pack $ show n) desc) castid
+            (replaceSubstring "$s1" (pack $ show n) desc) castid icon
 
 instance Make (IntMap DBCSpell) where
     file _ = "dbcSpells.gz"
@@ -351,6 +370,7 @@ data Spell = Spell
     , sp_name   :: ByteString
     , sp_desc   :: ByteString
     , sp_cast   :: Double
+    , sp_icon   :: ByteString
     } deriving (Show, Generic)
 instance Serialize Spell
 
@@ -803,6 +823,12 @@ newtype SpacedL a = SpacedL [a]
 instance Show a => Show (SpacedL a) where
     show (SpacedL []) = "[]"
     show (SpacedL (x:xs)) = "[" ++ show x ++ foldMap (", "++) (show <$> xs) ++ "]"
+
+breakBy :: Char -> ByteString -> [ByteString]
+breakBy c str =
+    case B.break (== c) str of
+        (l, "") -> [l]
+        (l, r) -> l : breakBy c (B.tail r)
 
 replaceSubstring :: ByteString -> ByteString -> ByteString -> ByteString
 replaceSubstring needle rep hay =

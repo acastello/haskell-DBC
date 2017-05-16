@@ -30,6 +30,8 @@ infixr 3 -=
 (-=) :: ToMarkup a => (Html -> b) -> a -> b
 x -= y = x (toHtml y)
 
+h `c` clas = h ! A.class_ clas
+
 instance ToMarkup B.ByteString where
     toMarkup = toHtml . B.unpack
 
@@ -48,7 +50,7 @@ instance ToMarkup Item where
       , toHtml $ it_id it
       ]
 
-header' = header $ div $ do
+header' = div `c` "header" $ div $ do
     a ! A.href "html.html" $ do
         "Home"
 

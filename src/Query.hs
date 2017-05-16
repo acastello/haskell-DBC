@@ -4,6 +4,7 @@
   , TypeFamilies 
   , FlexibleInstances
   , TemplateHaskell
+  , RankNTypes
   , TypeSynonymInstances #-}
 
 module Query 
@@ -38,6 +39,9 @@ import Source
 import Geometry
 import OpenGL
 
+asd :: (forall a. a -> a) -> (b,c) -> (b,c)
+asd f (a,b) = (f a, f b)
+
 type C a b c = (b -> c) -> a -> c
 
 class Filterable (f :: * -> *) where
@@ -61,19 +65,24 @@ instance Listable M.IntMap where
 by_ :: (a -> b) -> C a b c
 by_ = flip (.)
 
+in_ xs = \x -> any (== x) xs
+
 filters :: Filterable f => [a -> Bool] -> f a -> f a
 filters con = filter' (\e -> L.all ($ e) con)
 
-sorts :: (Listable f, Ord b) => C a b b -> f a -> [a]
+sorts :: (Listable f, Ord c) => C a c c -> f a -> [a]
 sorts f = L.reverse . L.sortOn (f id) . toList'
+
+sorts' :: (Filterable f, Listable f, Ord b, Num b) => (forall c. C a b c) -> f a -> [a]
+sorts' f = L.reverse . L.sortOn (f id) . toList' . filters [f (/=0)] 
 
 takes = L.take
 
-groups :: (Listable f, Eq b) => C a b b -> f a -> [(b,[a])]
+groups :: (Listable f, Eq c) => C a c c -> f a -> [(c,[a])]
 groups f = fmap (\xs -> (f id (head xs), xs)) .
            L.groupBy (\a b -> f id a == f id b) . toList' 
 
-groups' :: (Listable f, Eq b, Ord b) => C a b b -> f a -> [(b, [a])]
+groups' :: (Listable f, Eq c, Ord c) => C a c c -> f a -> [(c, [a])]
 groups' f = groups f . sorts f
 
 like :: B.ByteString -> B.ByteString -> Bool
@@ -253,6 +262,8 @@ spScore = [ (SpellPower, 1), (Hit, 0.5), (Intellect, 0.5), (Crit, 0.5)
           , (Haste, 0.5), (SpellPen, 1) ]
 
 mp5Score = [ (Spirit, 2), (ManaPer5, 1), (Intellect, 0.1) ]
+
+healScore = mp5Score ++ spScore
 
 -- goitem id = callCommand $ "xdg-open http://truewow.org/armory/item.php?item=" ++ show id
 
