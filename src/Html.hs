@@ -55,8 +55,8 @@ header' = div `c` "header" $ div $ do
         "Home"
 
 itemFull it = do
-    img ! A.src (fromString $ mconcat ["Icons/", B.unpack (it_icon it), ".png"])
     div ! A.class_ "tooltip" $ do
+      img ! A.src (fromString $ mconcat ["Icons/", B.unpack (it_icon it), ".png"])
       h1 ! A.style ("color: " `mappend` qualityColor (it_qual it))
         -= it_name it
       br

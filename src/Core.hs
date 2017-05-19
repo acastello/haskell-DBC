@@ -251,7 +251,7 @@ instance Show Item where
         (col [1,36]) (col [0,36]) (it_id i) 
         (qualc i ++ (unpack $ it_name i) ++ col [])
         (appendAT (show $ it_slot i) (it_mat i)) 
-        (showStats $ it_stats i) (col [32]) (tab $ it_desc i) (col [])
+        (showStats $ it_stats i) (col [32]) (tab' $ it_desc i) (col [])
         (foldMap ("\n        " ++) (show <$> it_suffs i))
         
 -- makeItem dbc sql it = Item 
@@ -887,8 +887,8 @@ median xs =
 
 index' f = M.fromList . fmap (\e -> (f e, e))
 
-tab :: ByteString -> String
-tab bs = do
+tab' :: ByteString -> String
+tab' bs = do
     s <- unpack bs
     case s of
         '\n' -> "\n    "

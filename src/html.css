@@ -1,5 +1,6 @@
 body {
     background: #202020 url(img/Background_World.png) no-repeat center center fixed;
+    justify-content: center;
 }
 
 .header {
@@ -33,9 +34,8 @@ body {
     border: 0.5em solid transparent;
     padding: 0.25em;
     border-image: url(img/itemborder.png) 6 fill;
-    float: left;
-    display: block;
     width: 18em;
+    margin: auto;
 }
 
 .tooltip * {
