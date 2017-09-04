@@ -24,6 +24,7 @@ import qualified Data.ByteString.Char8 as B
 import Data.Function
 import qualified Data.IntMap as M
 import qualified Data.Map as Ma
+import Data.Maybe
 import qualified Data.List as L
 import Data.String
 import Data.Word
@@ -39,8 +40,7 @@ import Source
 import Geometry
 import OpenGL
 
-asd :: (forall a. a -> a) -> (b,c) -> (b,c)
-asd f (a,b) = (f a, f b)
+export filepath = save filepath . fmap (p2t . pos) . toList'
 
 type C a b c = (b -> c) -> a -> c
 
@@ -73,7 +73,8 @@ filters con = filter' (\e -> L.all ($ e) con)
 sorts :: (Listable f, Ord c) => C a c c -> f a -> [a]
 sorts f = L.reverse . L.sortOn (f id) . toList'
 
-sorts' :: (Filterable f, Listable f, Ord b, Num b) => (forall c. C a b c) -> f a -> [a]
+sorts' :: (Filterable f, Listable f, Ord b, Num b) 
+                      => (forall c. C a b c) -> f a -> [a]
 sorts' f = L.reverse . L.sortOn (f id) . toList' . filters [f (/=0)] 
 
 takes = L.take
@@ -84,6 +85,10 @@ groups f = fmap (\xs -> (f id (head xs), xs)) .
 
 groups' :: (Listable f, Eq c, Ord c) => C a c c -> f a -> [(c, [a])]
 groups' f = groups f . sorts f
+
+groups'' :: (Filterable f, Listable f, Ord b, Num b) 
+                      => (forall c. C a b c) -> f a -> [(b, [a])]
+groups'' f = groups f . sorts' f
 
 like :: B.ByteString -> B.ByteString -> Bool
 like = B.isInfixOf
@@ -160,7 +165,7 @@ has_reagent rs = by_sp_reag (any ((\e -> any (== e) rs) . fst))
 
 has_product ps = by_sp_prod (any ((\e -> any (== e) ps) . fst))
 
-exists path = fileExist $ mconcat ["/home/alex/src/Extracted wotlk/Interface/ICONS/", path, ".png"]
+exists path = fileExist $ mconcat ["Icons/", path, ".png"]
 
 -- weight :: [a -> Double] -> a -> Double
 -- weight xs a = sum $ ($ a) <$> xs
@@ -181,10 +186,25 @@ eff = liftM2 (/)
 
 disenchantEff ew iw = liftM2 (/) (by_sp_disen (weight ew)) (by_sp_reag (weight iw))
 
+-- shorter distances between two lists
+
+-- shortestPath :: (Listable f, Listable f1, Position a, Position b) 
+  -- => f a -> f1 b -> [(Float, a, b)]
+shortestPath xs ys = fmap (L.minimumBy (compare `on` fst') . snd) 
+                      $ groups' (by_ snd') $ do
+    x <- toList' xs
+    y <- toList' ys
+    return (dist (pos x) (pos y), x, y) where
+        fst' (x,_,_) = x
+        snd' (_,x,_) = x
+
+
 -- generic comparing functions
 is_instance n = not $ any (== n) [0, 1, 530, 571]
 
-is_herb id = any (== id)
+is_herb id = any (== id) herbIds
+
+herbIds =
   [ 1617,   1618,   1629,   1620,   1621,   1622,   1623,   1624,   1625,   1628 
   , 2041,   2042,   2043,   2044,   2045,   2046,   2866,   3724,   3726
   , 3727,   3729,   3730,   3725,   142140, 142141, 142142, 142143, 142144 
@@ -246,7 +266,10 @@ warrScore = [ (Strength, 1), (AttackPower, 0.5), (Crit, 0.5), (Haste, 0.2)
 furyScore = [ (Strength, 1), (AttackPower, 0.5), (Crit, 0.75), (Haste, 0.5)
             , (Hit, 1), (Expertise, 1), (Agility, 0.75) ]
 
-hunterScore = [ (Agility, 1), (Hit, 0.75), (Intellect, 0.7), (AttackPower, 0.5)
+hunAgiScore = [ (Agility, 1.5), (Hit, 0.75), (Intellect, 0.7), (AttackPower, 0.5)
+              , (Crit, 0.5), (Expertise, 1), (Strength, 0.5) ]
+
+hunArpScore = [ (ArmorPen, 1.5), (Agility, 1.0), (Hit, 0.75), (Intellect, 0.7), (AttackPower, 0.5)
               , (Crit, 0.5), (Expertise, 1), (Strength, 0.5) ]
 
 rogueScore = [ (Agility, 1), (Hit, 1.5), (AttackPower, 0.6), (Crit, 0.4)
@@ -261,11 +284,17 @@ intScore = [ (SpellPower, 1), (Hit, 2), (Intellect, 0.75), (Crit, 0.5)
 spScore = [ (SpellPower, 1), (Hit, 0.5), (Intellect, 0.5), (Crit, 0.5)
           , (Haste, 0.5), (SpellPen, 1) ]
 
-mp5Score = [ (Spirit, 2), (ManaPer5, 1), (Intellect, 0.1) ]
+spCrit = [ (SpellPower, 1), (Hit, 0.5), (Intellect, 0.25), (Crit, 0.85)
+         , (Haste, 0.40), (Spirit, 0.5)]
+
+spHaste = [ (SpellPower, 1), (Hit, 0.5), (Intellect, 0.15), (Crit, 0.35)
+         , (Haste, 0.95), (Spirit, 0.5)]
+
+mp5Score = [ (Spirit, 0.5), (ManaPer5, 1), (Intellect, 0.2) ]
 
 healScore = mp5Score ++ spScore
 
--- goitem id = callCommand $ "xdg-open http://truewow.org/armory/item.php?item=" ++ show id
+iurl id = callCommand $ "xdg-open http://wotlk.evowow.com/?item=" ++ show id
 
 -- util
 

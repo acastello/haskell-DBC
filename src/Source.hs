@@ -172,7 +172,7 @@ finals :: FinalData
 finals = FinalData items spells
 
 creatures :: IntMap Creature
-creatures = $(serIn "creatures.gz")
+creatures = $(serIn' (undefined :: Creature))
 
 gameObjects :: IntMap GameObject
 gameObjects = $(serIn "gameObjects.gz")

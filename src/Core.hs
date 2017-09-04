@@ -45,6 +45,7 @@ import Text.Printf (printf)
 import DBC
 import SQL
 
+
 class Serialize a => Make a where
     make  :: IO a
     file  :: a -> FilePath
@@ -55,6 +56,15 @@ class Serialize a => Make a where
     load' = load'' undefined where
         load'' :: Make a => a -> IO a
         load'' x = load (file x)
+
+class Position a where
+    pos :: a -> Point
+
+instance Position Point where
+    pos = id
+
+instance Position a => Position (a, t) where
+    pos = pos . fst
 
 data Slot = NoSlot | Head | Neck | Shoulder | Back | Chest | Waist | Legs 
           | Wrists | Hands | Feet | Finger | Trinket | MainHand | OffHand 
@@ -171,7 +181,7 @@ data SQLItem = SQLItem
     , sqlit_props   :: Maybe PropertyId
     , sqlit_disen   :: Maybe (Level, SQLDisenchantId)
     , sqlit_display :: Int
-    } deriving (Generic, Show)
+    } deriving (Generic, Show, Eq)
 instance Serialize SQLItem
 instance NFData SQLItem
 
@@ -253,7 +263,7 @@ instance Show Item where
         (appendAT (show $ it_slot i) (it_mat i)) 
         (showStats $ it_stats i) (col [32]) (tab' $ it_desc i) (col [])
         (foldMap ("\n        " ++) (show <$> it_suffs i))
-        
+
 -- makeItem dbc sql it = Item 
     -- (sqlit_id it) (sqlit_name it) desc (sqlit_level it)
     -- lv qual mat
@@ -600,6 +610,9 @@ instance Show GameObject where
     show go = printf "%s#%s%d%s %s %s" (col [1,36]) (col [0,36]) 
               (go_id go) (col []) (unpack $ go_name go) (show $ go_point go)
 
+instance Position GameObject where
+    pos = go_point
+
 instance SQL GameObject where
     queryText _ = "SELECT `entry`,`guid`,`name`,`position_x`,`position_y`,`position_z`,`map`,`spawntimesecs` FROM `gameobject`,`gameobject_template` WHERE `id` = `entry` ORDER BY `entry`"
     fromResult = do
@@ -629,6 +642,12 @@ instance Serialize Creature
 
 instance Eq Creature where
     (==) = (==) `on` cr_id
+
+instance Ord Creature where
+    compare = compare `on` cr_id
+
+instance Position Creature where
+    pos = cr_point
 
 instance SQL Creature where
     queryText _ = "SELECT `id`, `guid`, `name`, `subname`, `position_x`, `position_y`, `position_z`, `map` FROM `creature`, `creature_template` WHERE `entry` = `id`"
@@ -680,6 +699,22 @@ instance SQL SQLDisenchant where
 instance Make (IntMap SQLDisenchant) where
     file _ = "sqlDisenchants.gz"
     make = makeSQL
+
+type ReferenceId = Int
+data SQLLootRef = SQLLooRef
+    { sqllr_id    :: ReferenceId
+    , sqllr_items :: [(Int,Int)]
+    } deriving (Show, Generic)
+
+instance SQL SQLLootRef where
+    queryText _ = 
+        " SELECT s.Entry, t.Item, C                                            \
+        \ FROM (SELECT Entry, Reference as R, Chance as C                      \
+        \     FROM `reference_loot_template`                                   \
+        \     WHERE Reference != 0)                                            \
+        \ as s, `reference_loot_template` as t                                 \
+        \ WHERE s.R = t.Entry \
+        \        SELECT `Entry`, IF(`Chance` = 0, 1/Count(`Entry`), `Chance`) as C FROM `reference_loot_template` WHERE 1 GROUP BY `Entry` "
 
 getSpellStats :: DBCSpell -> Maybe (Stat,Int)
 getSpellStats sp = (\i -> (i, fromIntegral $ dbcsp_val sp)) <$> 
@@ -928,8 +963,10 @@ mapMap = M.fromList
     , (533, "Naxxramas")
     -- Outland
     , (530, "Outland")
+    , (540, "Shattered Halls")
     , (542, "Blood Furnace")
     , (543, "Hellfire Ramparts")
+    , (545, "The Steamvault")
     , (546, "The Underbog")
     , (547, "Slave Pens")
     , (550, "Tempest Keep")
@@ -941,6 +978,7 @@ mapMap = M.fromList
     , (557, "Mana-Tombs")
     , (558, "Auchenai Crypts")
     , (565, "Gruul's Lair")
+    , (585, "Magister's Terrace")
     -- Northrend
     , (571, "Northrend")
     , (574, "Utgarde Keep")
@@ -948,10 +986,10 @@ mapMap = M.fromList
     , (576, "The Nexus")
     , (578, "The Oculus")
     , (595, "The Culling of Statholme")
-    , (599, "Halls of Lightning")
+    , (599, "Halls of Stone")
     , (600, "Drak'Tharon Keep")
     , (601, "Azjol-Nerub")
-    , (602, "Halls of Stone")
+    , (602, "Halls of Lightning")
     , (603, "Ulduar")
     , (604, "Gundrak")
     , (615, "The Obsidian Sanctum")
