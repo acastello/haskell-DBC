@@ -15,6 +15,7 @@ module OpenGL
 import Control.Concurrent
 import Control.Monad
 
+import Data.Fixed
 import Data.Int
 import qualified Data.IntMap as M
 import Data.IORef
@@ -33,8 +34,10 @@ instance Vertex a => Vertex (M.IntMap a) where
     vertexv = undefined
 
 class Bidimensional a where
+    vertp :: a -> [(Double, Double)]
     vert :: a -> IO ()
     bounds :: a -> (Double, Double, Double, Double)
+    vert e = mapM_ (vertex . uncurry Vertex2) $ vertp e
 
 center2 :: Bidimensional a => a -> (Double, Double)
 center2 e = ((x+x')/2, (y+y')/2) where
@@ -44,11 +47,11 @@ breadth xs = max (x' - x) (y' - y) where
     (x, y, x', y') = bounds xs
 
 instance Bidimensional (Double, Double) where
-    vert (x,y) = vertex $ Vertex2 x y
+    vertp e = [e]
     bounds (x,y) = (x-0.5, y-0.5, x+0.5, y+0.5)
 
 instance Bidimensional a => Bidimensional [a] where
-    vert = mapM_ vert
+    vertp xs = vertp `foldMap` xs
     bounds xs = (x, y, x', y') where
         x = minimum $ _1 <$> bs
         y = minimum $ _2 <$> bs
@@ -61,12 +64,20 @@ instance Bidimensional a => Bidimensional [a] where
         bs = bounds <$> xs
 
 instance Bidimensional a => Bidimensional (M.IntMap a) where
-    vert = mapM_ vert
+    vertp e = vertp `foldMap` (M.elems e)
     bounds = bounds . M.elems
 
 data Draw where
     P :: Bidimensional a => a -> Draw
     L :: Bidimensional a => a -> Draw 
+
+circle :: Bidimensional a => a -> Double -> Draw
+circle e r = L $ do
+    p <- vertp e
+    [(r * cos a, r * sin a) | a <- (pi*2*) <$> [0,0.01..1]]
+
+drawP (P a) = vertp a
+drawP (L a) = vertp a
 
 drawV (P a) = vert a
 drawV (L a) = vert a
@@ -78,6 +89,7 @@ drawC (P a) = center2 a
 drawC (L a) = center2 a
 
 instance Bidimensional Draw where
+    vertp = drawP
     vert  = drawV
     bounds = drawB
 
@@ -110,7 +122,7 @@ draw xs = do
     zoom refs $= 1 / breadth xs
     getArgsAndInitialize
     initialDisplayMode $= [ RGBAMode, DoubleBuffered ]
-    initialWindowSize $= Size 1440 900
+    initialWindowSize $= Size 900 900
     createWindow "OpenGL Canvas"
     reshapeCallback $= Just (reshapeCB refs)
     depthFunc $= Just Less
@@ -121,7 +133,7 @@ draw xs = do
     actionOnWindowClose $= MainLoopReturns
     mainLoop
     where
-
+        pairs = zip (hsvRange (length xs)) xs
         displayCB refs @ Refs { zoom = zoom, pos = pos } = do
             z <- get zoom
             (x,y) <- get pos
@@ -133,7 +145,9 @@ draw xs = do
             scale z z (1.0 :: Double)
             translate $ Vector3 x y 0
 
-            forM_ xs renderDraw
+            forM_ pairs $ \(c,d) -> do
+                color (hsv2rgb c)
+                renderDraw d
             swapBuffers
 
         keyboardMouseCB refs c ks m p @ (Position x y) = do
@@ -181,6 +195,25 @@ draw xs = do
 
 avg xs = (\(x,y) -> (x/l, y/l)) $ foldr (\(x,y) (x',y') -> (x+x',y+y')) (0,0) xs 
              where l = fromIntegral $ length xs
+
+hsvRange :: Int -> [Color3 Double]
+hsvRange n = [Color3 ((i / n' * 360) `mod'` 360) 0.7 1 | i <- [0 .. n' - 1]]
+  where n' = fromIntegral n
+
+hsv2rgb :: Color3 Double -> Color3 Double
+hsv2rgb (Color3 h s v) = Color3 (r + m) (g + m) (b + m)
+  where
+    h' = h `mod'` 360
+    c = v * s
+    x = c * (1 - abs (((h' / 60) `mod'` 2) - 1))
+    m = v - c
+    (r, g, b)
+      | 0 <= h' && h' < 60    = (,,) c x 0
+      | 60 <= h' && h' < 120  = (,,) x c 0
+      | 120 <= h' && h' < 180 = (,,) 0 c x
+      | 180 <= h' && h' < 240 = (,,) 0 x c
+      | 240 <= h' && h' < 300 = (,,) x 0 c
+      | 240 <= h' && h' < 360 = (,,) c 0 x
 
 test :: IO ()
 test = do

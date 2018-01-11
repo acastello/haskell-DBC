@@ -310,11 +310,13 @@ s :: B.ByteString -> SpellId
 s name = sp_id $ head $ toList' $ filters [by_ sp_name (== name)] spells
 
 instance Bidimensional Point where
+    vertp p = pure $ (,) (- (realToFrac $ p_y p)) (realToFrac $ p_x p)
     vert Point { p_x = x, p_y = y } = vertex $ Vertex2 (-y) x
     bounds Point { p_x = x, p_y = y } 
                          = bounds (realToFrac (-y) :: Double, realToFrac x :: Double)
 
 instance Bidimensional GameObject where
+    vertp = vertp . go_point
     vert = vert . go_point
     bounds = bounds . go_point
 

@@ -29,7 +29,7 @@ loadSQL = loadSQL' undefined where
     loadSQL' e = do 
         conn <- connect defaultConnectInfo 
             { ciUser = "guest"
-            , ciHost = "192.168.1.124"
+            , ciHost = "localhost"
             , ciDatabase = "world"
             }
         ret <- S.toList . snd =<< query_ conn (queryText e)

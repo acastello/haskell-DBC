@@ -127,7 +127,7 @@ instance GLiftArgs UAddr where
 
 -- #if MIN_VERSION_template_haskell(2,11,0)
 instance GLiftArgs UChar where
-    gliftArgs (UChar c) = [litE (charPrimL (C# c))]
+    gliftArgs (UChar c) = [litE (charL (C# c))]
 -- #endif
 
 instance GLiftArgs UDouble where
