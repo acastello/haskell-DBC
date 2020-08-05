@@ -847,9 +847,6 @@ instance Enum Slot where
 
 data Spaced a b = Spaced a b
 
-instance (Show a) => Show (Spaced a String) where
-    show _ = ""
-
 instance (Show a, Show b) => Show (Spaced a b) where
     show (Spaced a b) = (show a) ++ " " ++ (show b)
 
