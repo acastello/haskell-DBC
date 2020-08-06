@@ -1,16 +1,16 @@
-{-# LANGUAGE 
+{-# LANGUAGE
     MultiParamTypeClasses
   , ExistentialQuantification
-  , TypeFamilies 
+  , TypeFamilies
   , FlexibleInstances
   , TemplateHaskell
   , RankNTypes
   , TypeSynonymInstances #-}
 
-module Query 
-  ( module Query 
-  , module Core 
-  , module Source 
+module Query
+  ( module Query
+  , module Core
+  , module Source
   , module OpenGL
   , module Geometry
   , M.size, M.lookup
@@ -73,20 +73,20 @@ filters con = filter' (\e -> L.all ($ e) con)
 sorts :: (Listable f, Ord c) => C a c c -> f a -> [a]
 sorts f = L.reverse . L.sortOn (f id) . toList'
 
-sorts' :: (Filterable f, Listable f, Ord b, Num b) 
+sorts' :: (Filterable f, Listable f, Ord b, Num b)
                       => (forall c. C a b c) -> f a -> [a]
-sorts' f = L.reverse . L.sortOn (f id) . toList' . filters [f (/=0)] 
+sorts' f = L.reverse . L.sortOn (f id) . toList' . filters [f (/=0)]
 
 takes = L.take
 
 groups :: (Listable f, Eq c) => C a c c -> f a -> [(c,[a])]
 groups f = fmap (\xs -> (f id (head xs), xs)) .
-           L.groupBy (\a b -> f id a == f id b) . toList' 
+           L.groupBy (\a b -> f id a == f id b) . toList'
 
 groups' :: (Listable f, Eq c, Ord c) => C a c c -> f a -> [(c, [a])]
 groups' f = groups f . sorts f
 
-groups'' :: (Filterable f, Listable f, Ord b, Num b) 
+groups'' :: (Filterable f, Listable f, Ord b, Num b)
                       => (forall c. C a b c) -> f a -> [(b, [a])]
 groups'' f = groups f . sorts' f
 
@@ -94,11 +94,11 @@ like :: B.ByteString -> B.ByteString -> Bool
 like = B.isInfixOf
 
 dist :: Point -> Point -> Float
-dist p0 p1 = 
+dist p0 p1 =
     if p_m p0 /= p_m p1 then
         1/0
     else
-        sqrt $ sum $ fmap (**2) $ 
+        sqrt $ sum $ fmap (**2) $
           zipWith subtract [p_x p0, p_y p0, p_z p0] [p_x p1, p_y p1, p_z p1]
 
 
@@ -112,7 +112,7 @@ by_it_level = by_ it_level
 by_it_qual = by_ it_qual
 by_it_rlevel = by_ it_rlevel
 by_it_desc = by_ it_desc
-by_it_score tab = by_ (\i -> score tab (it_stats i) 
+by_it_score tab = by_ (\i -> score tab (it_stats i)
                (su_stats <$> L.filter (\s -> su_chance s > 2) (it_suffs i)))
 
 instance IsString Item where
@@ -143,9 +143,9 @@ instance IsString Spell where
 
 sp_pratio :: Spell -> Double
 sp_pratio s = pprod / preag where
-    preag = sum $ fmap (\(id, n) -> 
+    preag = sum $ fmap (\(id, n) ->
             fi n * (maybe 0 (fi . it_price) (M.lookup id items))) (sp_reag s)
-    pprod = sum $ fmap (\(id, n) -> 
+    pprod = sum $ fmap (\(id, n) ->
             n * (maybe 0 (fi . it_price) (M.lookup id items))) (sp_prod s)
 
 sp_pratio' :: [(ItemId, Double)] -> Spell -> Double
@@ -154,12 +154,12 @@ sp_pratio' ws s = pprod / wei where
             n * (maybe 0 (fi . it_price) (M.lookup id items))) (sp_prod s)
     wei = weight ws (sp_reag s)
 
-sp_disen s = do 
+sp_disen s = do
         (iid, quant) <- sp_prod s
         maybe [] id $ do
             it <- M.lookup iid items
             return $ fmap (fmap (*quant)) (it_disen it)
-    
+
 
 has_reagent rs = by_sp_reag (any ((\e -> any (== e) rs) . fst))
 
@@ -182,15 +182,15 @@ weight xs ys = sum $ do
 eff :: (a -> Double) -> (a -> Double) -> a -> Double
 eff = liftM2 (/)
 
--- efficiency xs ys e = 
+-- efficiency xs ys e =
 
 disenchantEff ew iw = liftM2 (/) (by_sp_disen (weight ew)) (by_sp_reag (weight iw))
 
 -- shorter distances between two lists
 
--- shortestPath :: (Listable f, Listable f1, Position a, Position b) 
+-- shortestPath :: (Listable f, Listable f1, Position a, Position b)
   -- => f a -> f1 b -> [(Float, a, b)]
-shortestPath xs ys = fmap (L.minimumBy (compare `on` fst') . snd) 
+shortestPath xs ys = fmap (L.minimumBy (compare `on` fst') . snd)
                       $ groups' (by_ snd') $ do
     x <- toList' xs
     y <- toList' ys
@@ -205,11 +205,11 @@ is_instance n = not $ any (== n) [0, 1, 530, 571]
 is_herb id = any (== id) herbIds
 
 herbIds =
-  [ 1617,   1618,   1629,   1620,   1621,   1622,   1623,   1624,   1625,   1628 
+  [ 1617,   1618,   1629,   1620,   1621,   1622,   1623,   1624,   1625,   1628
   , 2041,   2042,   2043,   2044,   2045,   2046,   2866,   3724,   3726
-  , 3727,   3729,   3730,   3725,   142140, 142141, 142142, 142143, 142144 
+  , 3727,   3729,   3730,   3725,   142140, 142141, 142142, 142143, 142144
   , 142145, 176583, 176584, 176586, 176587, 176588, 176589, 176636, 176637
-  , 176638, 176639, 176640, 176641, 176642, 180164, 180165, 180166, 180167 
+  , 176638, 176639, 176640, 176641, 176642, 180164, 180165, 180166, 180167
   , 180168, 181166, 181270, 181271, 181275, 181277, 181278, 181279
   , 181280, 181281, 183043, 183044, 183045, 183046, 185881, 189973, 190169
   , 190170, 190171, 190172, 190173, 190174, 190175, 190176, 191019, 191303 ]
@@ -217,7 +217,7 @@ herbIds =
 herbs :: M.IntMap GameObject
 herbs = filters [by_go_id is_herb] gameObjects
 
-is_vein id = any (== id) 
+is_vein id = any (== id)
   [ 181556, 185557, 189978, 1731, 3763, 2055, 181248, 103713, 165658, 181555
   , 1734, 150080, 181109, 180215, 1610, 1667, 19903, 1735, 181557, 181069
   , 2653, 2040, 150079, 176645, 185877, 73941, 123310, 177388, 73940, 123848
@@ -312,7 +312,7 @@ s name = sp_id $ head $ toList' $ filters [by_ sp_name (== name)] spells
 instance Bidimensional Point where
     vertp p = pure $ (,) (- (realToFrac $ p_y p)) (realToFrac $ p_x p)
     vert Point { p_x = x, p_y = y } = vertex $ Vertex2 (-y) x
-    bounds Point { p_x = x, p_y = y } 
+    bounds Point { p_x = x, p_y = y }
                          = bounds (realToFrac (-y) :: Double, realToFrac x :: Double)
 
 instance Bidimensional GameObject where
@@ -325,5 +325,5 @@ p2tuple p = (p_x p, p_y p, p_z p, fromIntegral $ p_m p)
 
 -- saveGO :: M.IntMap GameObject -> IO ()
 -- saveGO [] = error "no gameobjects"
--- saveGO xs = save ("tup4_" ++ B.unpack (go_name $ head xs) ++ ".gz") 
+-- saveGO xs = save ("tup4_" ++ B.unpack (go_name $ head xs) ++ ".gz")
 --                   ((p2tuple . go_point) <$> xs)

@@ -15,7 +15,7 @@ import qualified Data.IntMap as M
 import qualified Data.Serialize as S
 import qualified Data.List as L
 import qualified Data.Vector as V
-import Data.Word 
+import Data.Word
 
 import Foreign
 
@@ -28,26 +28,26 @@ import qualified Text.Printf as T
 data DBCStatus = DBCStatus
     { dbc_offset    :: Int
     , dbc_position  :: Int
-    } 
+    }
 
 data DBCData = DBCData
     { dbc_text  :: ByteString
     , dbc_data  :: ByteString
     }
 
-newtype DBCGet a = DBCGet (ReaderT DBCData (State DBCStatus) a)  
+newtype DBCGet a = DBCGet (ReaderT DBCData (State DBCStatus) a)
     deriving (Functor, Applicative, Monad, MonadReader DBCData, MonadState DBCStatus)
 
 runGet :: DBCGet a -> DBCData -> DBCStatus -> a
 runGet (DBCGet e) da st = evalState (runReaderT e da) st
 
 castDBC :: DBCItem a => DBC ByteString -> DBC a
-castDBC dbc = fmap runRow dbc 
+castDBC dbc = fmap runRow dbc
     where
-        runRow dat = runGet cast (DBCData (strs dbc) dat) (DBCStatus 0 0) 
+        runRow dat = runGet cast (DBCData (strs dbc) dat) (DBCStatus 0 0)
 
 indexDBC :: DBCFile a => (a -> Int) -> DBC a -> M.IntMap a
-indexDBC f = M.fromList . fmap (\a -> (f a, a)) . rows 
+indexDBC f = M.fromList . fmap (\a -> (f a, a)) . rows
 
 -- loadIndexed :: DBCItem a => FilePath -> (a -> Int) -> IO (M.IntMap a)
 -- loadIndexed fp f = indexDBC f . castDBC <$> loadDBC fp
@@ -132,7 +132,7 @@ data DBC a = DBC
     } deriving Show
 
 instance Functor DBC where
-    fmap = applyf . fmap 
+    fmap = applyf . fmap
 
 instance Foldable DBC where
     foldMap f = foldMap f . rows
@@ -150,9 +150,9 @@ loadDBC fp = do
         e <- S.getWord32le
         s <- S.getWord32le
         return (r,c,e,s)
-    let f str n = 
-          if n <= 0 then 
-              ([], str) 
+    let f str n =
+          if n <= 0 then
+              ([], str)
           else
               let (left, right) = B.splitAt (fi e) str
                   (result, remaining) = f right (n-1)
@@ -168,7 +168,7 @@ loadDBC fp = do
 --
 
 fi :: (Integral a, Num b) => a -> b
-fi = fromIntegral 
+fi = fromIntegral
 
 peekBS :: ByteString -> ByteString
 peekBS = B.takeWhile (/=0)
@@ -176,7 +176,7 @@ peekBS = B.takeWhile (/=0)
 applyf f dbc = dbc { rows = f (rows dbc) }
 
 isInfix :: B.ByteString -> B.ByteString -> Bool
-isInfix needle hay = Prelude.any (B.isPrefixOf needle) 
+isInfix needle hay = Prelude.any (B.isPrefixOf needle)
                      [B.drop i hay | i <- [0.. B.length hay - B.length needle]]
 knownspells :: [Word32]
 knownspells = [18053          -- sp

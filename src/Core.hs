@@ -9,17 +9,17 @@
 module Core
     ( module Core
     , module DBC
-    , module SQL 
+    , module SQL
     , IntMap
     , first
     , second
     , bimap
-    ) where 
+    ) where
 
 import Codec.Compression.GZip
 
 import Control.DeepSeq
-import Control.Monad 
+import Control.Monad
 
 import Data.ByteString.Char8 hiding (foldl1, index)
 import qualified Data.ByteString.Char8 as B
@@ -66,9 +66,9 @@ instance Position Point where
 instance Position a => Position (a, t) where
     pos = pos . fst
 
-data Slot = NoSlot | Head | Neck | Shoulder | Back | Chest | Waist | Legs 
-          | Wrists | Hands | Feet | Finger | Trinket | MainHand | OffHand 
-          | Weapon | TwoHand | Ranged | Bag | HandHeld | Thrown | Ammo | Relic 
+data Slot = NoSlot | Head | Neck | Shoulder | Back | Chest | Waist | Legs
+          | Wrists | Hands | Feet | Finger | Trinket | MainHand | OffHand
+          | Weapon | TwoHand | Ranged | Bag | HandHeld | Thrown | Ammo | Relic
           | Quiver | Shirt | Tabard | Shield | UnknownSlot Int
     deriving (Show, Read, Eq, Generic, Ord)
 instance Serialize Slot
@@ -106,11 +106,11 @@ appendAT pre at =
     else
         pre ++ ", " ++ s
 
-data Stat = Mana | HP | Agility | Strength | Intellect | Spirit | Stamina 
-    | Armor | Defense | Dodge | Parry | Block | Hit | Crit | Resilence | Haste 
+data Stat = Mana | HP | Agility | Strength | Intellect | Spirit | Stamina
+    | Armor | Defense | Dodge | Parry | Block | Hit | Crit | Resilence | Haste
     | Expertise | AttackPower | HealingPower | ManaPer5 | SpellPower | ArmorPen
     | Vitality | SpellPen | BlockValue | Speed | Damage
-    | HolyRes | ShadowRes | FireRes | FrostRes | NatureRes | ArcaneRes 
+    | HolyRes | ShadowRes | FireRes | FrostRes | NatureRes | ArcaneRes
     | UnknownStat Int
     deriving (Eq, Read, Generic, Ord, Show)
 instance Serialize Stat
@@ -120,7 +120,7 @@ data Quality = Poor | Common | Uncommon | Rare | Epic | Legendary
     | Artifact | Heirloom
     deriving (Eq, Ord, Show, Read, Generic)
 instance Serialize Quality
-instance NFData Quality 
+instance NFData Quality
 
 instance Enum Quality where
     fromEnum = undefined
@@ -159,7 +159,7 @@ instance Show Faction where
 instance Serialize Faction
 instance NFData Faction
 
-data Bonding = BoP | BoE | BtA 
+data Bonding = BoP | BoE | BtA
 
 type ItemId = Int
 type Level = Int
@@ -197,10 +197,10 @@ instance SQL SQLItem where
       -- stat values
       , "stat_value1", "stat_value2", "stat_value3" , "stat_value4"
       , "stat_value5", "stat_value6", "stat_value7" , "stat_value8"
-      , "stat_value9", "stat_value10" 
-      
+      , "stat_value9", "stat_value10"
+
       , "RandomSuffix", "RandomProperty", "RequiredDisenchantSkill"
-      , "DisenchantId" 
+      , "DisenchantId"
       , "spellid_1", "spellid_2", "spellid_3", "spellid_4", "spellid_5"
       , "scalingStatDistribution", "displayid" ]
     fromResult = do
@@ -220,10 +220,10 @@ instance SQL SQLItem where
         props   <- maybe0 <$> sql_fi 30
         disenlv <- sql_fi 31
         disenid <- sql_fi 32
-        let disen = 
-              if disenlv /= -1 && disenid > 0 then 
-                  Just (disenlv, disenid) 
-              else 
+        let disen =
+              if disenlv /= -1 && disenid > 0 then
+                  Just (disenlv, disenid)
+              else
                   Nothing
         spells <- L.filter (/= 0) <$> mapM sql_fi [33,34,35,36,37]
         scaling <- sql_fi 38
@@ -236,17 +236,17 @@ instance Make (IntMap SQLItem) where
     file _ = "sqlItems.gz"
     make = makeSQL
 
-data Item = Item 
+data Item = Item
     { it_id     :: ItemId
-    , it_name   :: ByteString 
+    , it_name   :: ByteString
     , it_desc   :: ByteString
-    , it_level  :: ItemLevel 
+    , it_level  :: ItemLevel
     , it_qual   :: Quality
     , it_mat    :: Material
     , it_slot   :: Slot
     , it_rlevel :: Level
     , it_price  :: Int
-    , it_stats  :: [(Stat, Int)] 
+    , it_stats  :: [(Stat, Int)]
     , it_spells :: [SpellId]
     , it_suffs  :: [Suffix]
     , it_disenlv:: Maybe Int
@@ -257,14 +257,14 @@ instance Serialize Item
 instance NFData Item
 
 instance Show Item where
-    show i = printf "%s#%s%-5d %s (%s) %s%s%s%s%s\n" 
-        (col [1,36]) (col [0,36]) (it_id i) 
+    show i = printf "%s#%s%-5d %s (%s) %s%s%s%s%s\n"
+        (col [1,36]) (col [0,36]) (it_id i)
         (qualc i ++ (unpack $ it_name i) ++ col [])
-        (appendAT (show $ it_slot i) (it_mat i)) 
+        (appendAT (show $ it_slot i) (it_mat i))
         (showStats $ it_stats i) (col [32]) (tab' $ it_desc i) (col [])
         (foldMap ("\n        " ++) (show <$> it_suffs i))
 
--- makeItem dbc sql it = Item 
+-- makeItem dbc sql it = Item
     -- (sqlit_id it) (sqlit_name it) desc (sqlit_level it)
     -- lv qual mat
     -- slot rlevel
@@ -354,13 +354,13 @@ instance DBCItem DBCSpell where
         desc <- castAt 170
         reag <- do
             ids <- mapM castAt [52..59]
-            quants <- mapM (fmap (fi :: Word32 -> Int) . castAt) [60..67] 
+            quants <- mapM (fmap (fi :: Word32 -> Int) . castAt) [60..67]
             return $ L.filter (\(a,b) -> a /= 0 && b /= 0) $ L.zip ids quants
         prod <- do
             ids <- L.filter (/= 0) <$> mapM castAt [107..109]
             quants <- mapM (fmap (fi :: Word32 -> Double) . castAt) [80..82]
-            dice <- mapM 
-              (fmap (\x -> (1 + fi x)/2) . (castAt :: Int -> DBCGet Word32)) 
+            dice <- mapM
+              (fmap (\x -> (1 + fi x)/2) . (castAt :: Int -> DBCGet Word32))
               [74..76]
             return $ L.zip ids (L.zipWith (+) dice quants)
         return $ DBCSpell id n t1 t2 reag prod name
@@ -391,21 +391,21 @@ instance Serialize Spell
 --         n <- get' strs
 --         skip (4*14)
 --         t1 <- get' strs
---         skip (4*14) 
+--         skip (4*14)
 --         t2 <- get' strs
 --         skip (4*59)
 --         desc <- get' strs
 --         return $ DBCSpell id (n+1) (t1,t2) (replaceSubstring "$s1" (pack $ show (n+1)) desc)
 
-data Quest = Quest 
+data Quest = Quest
     { qt_id     :: Int
     , qt_name   :: ByteString
     , qt_level  :: Level
     , qt_fac    :: Maybe Faction
     , qt_items  :: [Int]
     } deriving (Show, Generic)
-instance Serialize Quest 
-instance NFData Quest 
+instance Serialize Quest
+instance NFData Quest
 
 data DBCScalingStat = DBCScalingStat
     { dbcss_id      :: Int
@@ -423,7 +423,7 @@ instance DBCItem DBCScalingStat where
         id <- fi <$> castWord32
         stats <- mapM castAt [1..10]
         vals <- mapM castAt [11..20]
-        let f x y = if x == -1 || y /= 0 then 
+        let f x y = if x == -1 || y /= 0 then
                     Just (toEnum x, y*130`quot`10000) else Nothing
             pairs = catMaybes $ L.zipWith f stats vals
         return $ DBCScalingStat id pairs
@@ -438,8 +438,8 @@ data DBCSuffix = DBCSuffix
     , dbcsu_suffix  :: ByteString
     , dbcsu_enchs   :: [EnchantmentId]
     } deriving (Show, Generic)
-instance Serialize DBCSuffix 
-instance NFData DBCSuffix 
+instance Serialize DBCSuffix
+instance NFData DBCSuffix
 
 instance DBCFile DBCSuffix where
     dbcIndex = dbcsu_id
@@ -465,13 +465,13 @@ instance Make (IntMap DBCSuffix) where
 --         return $ DBCSuffix id suffix (L.filter (/=0) es)
 
 type PropertyId = Int
-data DBCProperty = DBCProperty 
+data DBCProperty = DBCProperty
     { dbcpo_id     :: PropertyId
     , dbcpo_suffix :: ByteString
     , dbcpo_enchs  :: [EnchantmentId]
     } deriving (Show, Generic)
-instance Serialize DBCProperty 
-instance NFData DBCProperty 
+instance Serialize DBCProperty
+instance NFData DBCProperty
 
 instance DBCFile DBCProperty where
     dbcIndex = dbcpo_id
@@ -494,8 +494,8 @@ data DBCEnchantment = DBCEnchantment
     , dbcen_stats  :: [(Stat,Int)]
     , dbcen_spells :: [SpellId]
     } deriving (Show, Generic)
-instance Serialize DBCEnchantment 
-instance NFData DBCEnchantment 
+instance Serialize DBCEnchantment
+instance NFData DBCEnchantment
 
 instance DBCFile DBCEnchantment where
     dbcIndex = dbcen_id
@@ -537,9 +537,9 @@ instance SQL SQLSuffix where
     fromResult = do
         id <- sql_fi 0
         suffid <- sql_fi 1
-        chance <- sql_float 2 
+        chance <- sql_float 2
         return $ SQLSuffix id [(suffid, chance)]
-    finalResult xs = M.fromListWith 
+    finalResult xs = M.fromListWith
           (\a b -> a { sqlsu_suffs = sqlsu_suffs a ++ sqlsu_suffs b })
           $ (\e -> (sqlsu_id e, e)) <$> xs
 
@@ -552,12 +552,12 @@ data Suffix = Suffix
     , su_chance :: Float
     , su_stats  :: [(Stat, Int)]
     } deriving Generic
-instance Serialize Suffix 
+instance Serialize Suffix
 instance NFData Suffix
 
 instance Show Suffix where
     show su = printf "%s%s%s (%2.1f %%) %s%s"
-          (col [1,3,32]) (unpack (su_suffix su)) (col [0,3]) 
+          (col [1,3,32]) (unpack (su_suffix su)) (col [0,3])
           (su_chance su) (showStats (su_stats su)) (col [23])
 
 type SuffixMap = Ma.Map (Either SuffixId PropertyId) [Suffix]
@@ -579,8 +579,8 @@ instance Serialize Point
 instance NFData Point
 
 instance Show Point where
-    show p = printf "%s(%s%.3f%s,%s %.3f%s,%s %.3f%s)%s %s%-3d%s %s%s%s" 
-        (col [1]) (col []) (p_x p) (col [1]) (col []) (p_y p) (col [1]) (col []) 
+    show p = printf "%s(%s%.3f%s,%s %.3f%s,%s %.3f%s)%s %s%-3d%s %s%s%s"
+        (col [1]) (col []) (p_x p) (col [1]) (col []) (p_y p) (col [1]) (col [])
         (p_z p) (col [1]) (col [])  (col [32]) (p_m p) (col [38]) (col [1])
         (maybe "<unknown>" id $ M.lookup (p_m p) mapMap) (col [])
 
@@ -598,16 +598,16 @@ data GameObject = GameObject
     , go_cd     :: Int
     } deriving Generic
 instance Serialize GameObject
-instance NFData GameObject 
+instance NFData GameObject
 
 instance Eq GameObject where
-    (==) = (==) `on` go_id 
+    (==) = (==) `on` go_id
 
 instance Ord GameObject where
     compare = compare `on` go_id
 
 instance Show GameObject where
-    show go = printf "%s#%s%d%s %s %s" (col [1,36]) (col [0,36]) 
+    show go = printf "%s#%s%d%s %s %s" (col [1,36]) (col [0,36])
               (go_id go) (col []) (unpack $ go_name go) (show $ go_point go)
 
 instance Position GameObject where
@@ -675,13 +675,13 @@ data SQLDisenchant = SQLDisenchant
 instance Serialize SQLDisenchant
 
 instance SQL SQLDisenchant where
-    queryText _ = 
+    queryText _ =
         "SELECT t.entry, item, chance, sum, mincount, maxcount  \
         \    FROM (SELECT entry,100-SUM(Chance) as SUM           \
         \        FROM `disenchant_loot_template`                 \
         \            WHERE 1 GROUP BY Entry) as s                \
         \    , `disenchant_loot_template` as t                   \
-        \    WHERE t.entry = s.entry"                            
+        \    WHERE t.entry = s.entry"
     fromResult = do
         id      <- sql_fi 0
         item    <- sql_fi 1
@@ -707,7 +707,7 @@ data SQLLootRef = SQLLooRef
     } deriving (Show, Generic)
 
 instance SQL SQLLootRef where
-    queryText _ = 
+    queryText _ =
         " SELECT s.Entry, t.Item, C                                            \
         \ FROM (SELECT Entry, Reference as R, Chance as C                      \
         \     FROM `reference_loot_template`                                   \
@@ -717,10 +717,10 @@ instance SQL SQLLootRef where
         \        SELECT `Entry`, IF(`Chance` = 0, 1/Count(`Entry`), `Chance`) as C FROM `reference_loot_template` WHERE 1 GROUP BY `Entry` "
 
 getSpellStats :: DBCSpell -> Maybe (Stat,Int)
-getSpellStats sp = (\i -> (i, fromIntegral $ dbcsp_val sp)) <$> 
+getSpellStats sp = (\i -> (i, fromIntegral $ dbcsp_val sp)) <$>
   case (dbcsp_scho sp, dbcsp_scho2 sp) of
     (135,126) -> Just SpellPower
-    (13, n)   
+    (13, n)
       | L.any (==n) [2,4,8,16,32,64,126] -> Just SpellPower
     (99,0)    -> Just AttackPower
     (85,0)    -> Just ManaPer5
@@ -866,16 +866,16 @@ replaceSubstring :: ByteString -> ByteString -> ByteString -> ByteString
 replaceSubstring needle rep hay =
     case breakSubstring needle hay of
         (l,"") -> l
-        (l,r) -> l `B.append` rep `B.append` (replaceSubstring needle rep $ B.drop (B.length needle) r) 
+        (l,r) -> l `B.append` rep `B.append` (replaceSubstring needle rep $ B.drop (B.length needle) r)
 
 enc :: Serialize a => a -> ByteString
-enc = BL.toStrict . compress . encodeLazy 
+enc = BL.toStrict . compress . encodeLazy
 
 save :: Serialize a => FilePath -> a -> IO ()
 save file res = B.writeFile file $ enc res
 
 dec :: Serialize a => BL.ByteString -> a
-dec = either error id . decode . BL.toStrict . decompress 
+dec = either error id . decode . BL.toStrict . decompress
 
 dec' :: Serialize a => String -> a
 dec' str = seq ret ret where ret = dec $ BLC.pack str
@@ -893,8 +893,8 @@ fr = fromRational . toRational
 col [] = col [0]
 col xs = "\ESC[" ++ foldl1 (\s s' -> s ++ ";" ++ s') (show <$> xs) ++ "m\STX"
 
-sample' = Prelude.putStrLn $ L.unlines $ fmap L.concat $ 
-          (fmap (\i -> printf "%s Nigger %3d %s " (col [i]) i (col []))) 
+sample' = Prelude.putStrLn $ L.unlines $ fmap L.concat $
+          (fmap (\i -> printf "%s Nigger %3d %s " (col [i]) i (col [])))
           <$> formatting numbers where
     numbers = L.concat [[0..5], [7..9], [30..38], [40..48]
                        , [90..98], [100..107 :: Int]]
@@ -930,7 +930,7 @@ showStats :: [(Stat, Int)] -> String
 showStats stats = show $ SpacedL $ uncurry (flip Spaced) <$> stats
 
 mapMap :: M.IntMap String
-mapMap = M.fromList 
+mapMap = M.fromList
     [ (0,   "Eastern Kingdoms")
     , (1,   "Kalimdor")
     , (33,  "Shadowfang Keep")

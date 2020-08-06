@@ -19,15 +19,15 @@ class SQL a where
     queryText   :: a -> Query
     fromResult  :: [MySQLValue] -> a
     finalResult :: [a] -> M.IntMap a
-    
+
 makeSQL :: SQL a => IO (M.IntMap a)
 makeSQL = finalResult <$> loadSQL
 
 loadSQL :: SQL a => IO [a]
-loadSQL = loadSQL' undefined where 
+loadSQL = loadSQL' undefined where
     loadSQL' :: SQL a => a -> IO [a]
-    loadSQL' e = do 
-        conn <- connect defaultConnectInfo 
+    loadSQL' e = do
+        conn <- connect defaultConnectInfo
             { ciUser = "guest"
             , ciHost = "localhost"
             , ciDatabase = "world"

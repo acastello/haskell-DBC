@@ -23,4 +23,4 @@ contained p (head:pol) = length left `mod` 2 /= 0 && length right `mod` 2 /= 0
     hei :: Point -> Point -> Float
     hei p' p'' = m * (p_y p) + n where
         m = (p_x p'' - p_x p') / (p_y p'' - p_y p')
-        n = p_x p' - m * p_y p' 
+        n = p_x p' - m * p_y p'

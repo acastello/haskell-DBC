@@ -1,4 +1,4 @@
-{-# LANGUAGE 
+{-# LANGUAGE
         TemplateHaskell,        CPP
       , MagicHash,              TypeOperators
       , TypeSynonymInstances,   FlexibleInstances
@@ -143,6 +143,6 @@ instance GLiftArgs UWord where
     gliftArgs (UWord w) = [litE (wordPrimL (toInteger (W# w)))]
 
 instance Lift B.ByteString where
-    lift = return . LitE . StringL . B.unpack 
+    lift = return . LitE . StringL . B.unpack
 instance Lift Point where
     lift = genericLift

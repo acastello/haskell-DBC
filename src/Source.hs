@@ -54,10 +54,10 @@ instance Serialize DBCSources
 
 instance Make DBCSources where
     file = undefined
-    make = $(liftN "make" 8) DBCSources 
+    make = $(liftN "make" 8) DBCSources
     load' = $(liftN "load'" 8) DBCSources
-    save' (DBCSources a b c d e f g h) = 
-        save' a >> save' b >> save' c >> save' d >> save' e >> save' f 
+    save' (DBCSources a b c d e f g h) =
+        save' a >> save' b >> save' c >> save' d >> save' e >> save' f
         >> save' g >> save' h
 
 data SQLSources = SQLSources
@@ -72,7 +72,7 @@ instance Serialize SQLSources
 instance Make SQLSources where
     file _ = undefined
     make = $(liftN "make" 5) SQLSources
-    load' = $(liftN "load'" 5) SQLSources 
+    load' = $(liftN "load'" 5) SQLSources
     save' (SQLSources a b c d e) = save' a >> save' b >> save' c >> save' d >> save' e
 
 data Maps = Maps
@@ -84,7 +84,7 @@ instance Make Maps where
     file = undefined
     make = liftM Maps make
     load' = liftM Maps load'
-    save' (Maps a) = save' a 
+    save' (Maps a) = save' a
 
 data FinalData = FinalData
     { final_items     :: IntMap Item
@@ -114,47 +114,47 @@ makeSuffixMap dbc sql = Ma.fromList (f $ M.elems (sqls_suffmap sql)) where
             sid <- M.lookup id (sourcef dbc)
             encs <- mapM (flip M.lookup $ dbcs_enchants dbc) (enchsf sid)
             return $ getSuffix
-                (dbcs_spells dbc) (stringf sid) chance 
-                (encs >>= dbcen_stats) (encs >>= dbcen_spells) 
+                (dbcs_spells dbc) (stringf sid) chance
+                (encs >>= dbcen_stats) (encs >>= dbcen_spells)
     leftmap = map dbcs_suffixes dbcsu_enchs dbcsu_suffix
     rightmap = map dbcs_properties dbcpo_enchs dbcpo_suffix
 
 instance Make (IntMap Item) where
     file _ = "items.gz"
-    make = return $ fmap (makeItem dbcSources sqlSources maps) 
+    make = return $ fmap (makeItem dbcSources sqlSources maps)
            $ (sqls_items sqlSources)
 
 makeItem :: DBCSources -> SQLSources -> Maps -> SQLItem -> Item
 makeItem dbc sql maps it = Item
     (sqlit_id it) (sqlit_name it) desc (sqlit_level it) (sqlit_qual it)
-    (sqlit_mat it) (sqlit_slot it) (sqlit_rlevel it) (sqlit_price it) stats 
+    (sqlit_mat it) (sqlit_slot it) (sqlit_rlevel it) (sqlit_price it) stats
     spells suffs dislv disens icon
       where
-        desc = "" -- foldMap (B.append "\n") (dbcsp_desc <$> 
-        stats = (maybe [] dbcss_stats 
+        desc = "" -- foldMap (B.append "\n") (dbcsp_desc <$>
+        stats = (maybe [] dbcss_stats
                     (M.lookup (sqlit_scaling it) (dbcs_scastats dbc)))
-                ++ (sqlit_stats it) ++ catMaybes ( 
+                ++ (sqlit_stats it) ++ catMaybes (
                 (\s -> M.lookup s (dbcs_spells dbc) >>= getSpellStats) <$> (sqlit_spells it))
         spells = sqlit_spells it
         suffs = maybe [] L.concat $ do
             suid <- sqlit_suffs it
             pid <- sqlit_props it
             let smap = map_suffmap maps
-            return $ foldMap maybeToList $ 
+            return $ foldMap maybeToList $
                 [Ma.lookup (Left suid) smap, Ma.lookup (Right pid) smap]
         (dislv, disens) = maybe (Nothing, []) (\(a,b) -> (Just a, b)) $ do
             (lv, id) <- sqlit_disen it
             encs <- M.lookup id (sqls_disench sql)
             return (lv, sqldis_drops encs)
-        icon = maybe "INV_Misc_QuestionMark" (BC.map toLower . dbcdi_icon) $ 
+        icon = maybe "INV_Misc_QuestionMark" (BC.map toLower . dbcdi_icon) $
               M.lookup (sqlit_display it) (dbcs_dpinfo dbc)
 
 makeSpell :: DBCSources -> SQLSources -> Maps -> DBCSpell -> Spell
 makeSpell dbc sql maps sp = Spell
-    (dbcsp_id sp)   (dbcsp_val sp)   (dbcsp_scho sp)   (dbcsp_scho2 sp) 
-    (dbcsp_reag sp)   (dbcsp_prod sp)   (dbcsp_name sp)   (dbcsp_desc sp) 
+    (dbcsp_id sp)   (dbcsp_val sp)   (dbcsp_scho sp)   (dbcsp_scho2 sp)
+    (dbcsp_reag sp)   (dbcsp_prod sp)   (dbcsp_name sp)   (dbcsp_desc sp)
     (maybe 0 dbcct_time $ M.lookup (dbcsp_castid sp) (dbcs_casttimes dbc))
-    (maybe "INV_Misc_QuestionMark" (BC.map toLower . snd . BC.breakEnd (== '\\') . dbcsi_icon) 
+    (maybe "INV_Misc_QuestionMark" (BC.map toLower . snd . BC.breakEnd (== '\\') . dbcsi_icon)
         $ M.lookup (dbcsp_iconid sp) (dbcs_spellicons dbc))
 
 -- sourced, serialized data
@@ -198,7 +198,7 @@ dbcDisplayInfo = $(serIn "dbcDisplayInfo.gz")
 dbcScalingStats :: IntMap DBCScalingStat
 dbcScalingStats = $(serIn "dbcScalingStats.gz")
 
-dbcSuffixes :: IntMap DBCSuffix 
+dbcSuffixes :: IntMap DBCSuffix
 dbcSuffixes = $(serIn "dbcSuffixes.gz")
 
 dbcProperties :: IntMap DBCProperty
@@ -257,8 +257,8 @@ getQuest e =
     in Quest qid qname r_level r_fac qitems
 
 getRes :: [MySQLValue] -> [(Stat, Int)]
-getRes entry = 
-    catMaybes $ L.zipWith just' 
+getRes entry =
+    catMaybes $ L.zipWith just'
         [HolyRes, FireRes, NatureRes, FrostRes, ShadowRes, ArcaneRes]
         (fs <$> inds entry [57..62])
 
@@ -275,7 +275,7 @@ getItemSpells e = do
         return i
     else
         []
-                    
+
 groupSuffixes :: [Suffix] -> [Suffix]
 groupSuffixes xs = do
     (suf, s) <- group' $ (\s' -> (su_suffix s', s')) <$> xs

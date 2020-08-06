@@ -1,9 +1,9 @@
-{-# LANGUAGE 
+{-# LANGUAGE
     FlexibleInstances
-  , ScopedTypeVariables 
+  , ScopedTypeVariables
   , GADTs #-}
 
-module OpenGL 
+module OpenGL
   ( vertex
   , Vertex2 (..), Vertex3 (..)
   , Bidimensional (..)
@@ -69,7 +69,7 @@ instance Bidimensional a => Bidimensional (M.IntMap a) where
 
 data Draw where
     P :: Bidimensional a => a -> Draw
-    L :: Bidimensional a => a -> Draw 
+    L :: Bidimensional a => a -> Draw
 
 circle :: Bidimensional a => a -> Double -> Draw
 circle e r = L $ do
@@ -104,7 +104,7 @@ data Refs = Refs
   , pos     :: IORef (Double, Double)
   , lastPos :: IORef (Maybe (Double, Double, Int32, Int32))
   , ratios  :: IORef (Double, Double)
-  } 
+  }
 
 newRefs = do
     z <- newIORef 0.1
@@ -175,7 +175,7 @@ draw xs = do
 
                 _ -> return ()
 
-        reshapeCB refs size @ (Size w h) = do 
+        reshapeCB refs size @ (Size w h) = do
             viewport $= (Position 0 0, size)
             ratios refs $= (fromIntegral w / 2, fromIntegral h / 2)
 
@@ -193,7 +193,7 @@ draw xs = do
                 -- viewport $= (Position (x' + x - x'') (y' + y'' - y), s)
             postRedisplay Nothing
 
-avg xs = (\(x,y) -> (x/l, y/l)) $ foldr (\(x,y) (x',y') -> (x+x',y+y')) (0,0) xs 
+avg xs = (\(x,y) -> (x/l, y/l)) $ foldr (\(x,y) (x',y') -> (x+x',y+y')) (0,0) xs
              where l = fromIntegral $ length xs
 
 hsvRange :: Int -> [Color3 Double]
